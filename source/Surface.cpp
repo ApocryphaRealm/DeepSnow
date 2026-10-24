@@ -48,6 +48,7 @@ namespace surface
 		{
 			std::uint64_t generation = 0;
 			std::array<std::vector<std::string>, static_cast<std::size_t>(settings::List::kCount)> lists;
+			std::vector<std::uint32_t> iceMaterials;  // sIceMaterials parsed once (decimal IDs; a bad entry is skipped)
 		};
 		const Table& CurrentTable()
 		{
@@ -56,10 +57,16 @@ namespace surface
 			if (t.generation != g)
 			{
 				for (int i = 0; i < static_cast<int>(settings::List::kCount); ++i) { t.lists[i] = settings::GetList(static_cast<settings::List>(i)); }
+				t.iceMaterials.clear();
+				for (const auto& s : t.lists[static_cast<std::size_t>(settings::List::kIceMaterial)])
+				{
+					try { t.iceMaterials.push_back(static_cast<std::uint32_t>(std::stoul(s))); }
+					catch (...) { logger::warn("[surface] sIceMaterials: '{}' is not a decimal material ID; skipped", s); }
+				}
 				t.generation = g;
-				logger::debug("[surface] table re-read: snow={} trail={} road={} ice={} iceMeshes={}", settings::ListText(settings::List::kSnow),
+				logger::debug("[surface] table re-read: snow={} trail={} road={} ice={} iceMeshes={} iceMaterials={}", settings::ListText(settings::List::kSnow),
 					settings::ListText(settings::List::kTrail), settings::ListText(settings::List::kRoad), settings::ListText(settings::List::kIce),
-					settings::ListText(settings::List::kIceMesh));
+					settings::ListText(settings::List::kIceMesh), settings::ListText(settings::List::kIceMaterial));
 			}
 			return t;
 		}
@@ -223,9 +230,18 @@ namespace surface
 		return Kind::kOther;
 	}
 
+	bool IsIceMaterial(std::uint32_t a_material)
+	{
+		const auto& v = CurrentTable().iceMaterials;
+		return a_material != 0 && std::find(v.begin(), v.end(), a_material) != v.end();
+	}
+
 	bool IsIceMesh(const std::string& a_model)
 	{
-		const std::string m = Lower(a_model);
+		// Forward slashes and no leading "meshes/", as Ice is Slick writes its paths (and as the INI list does).
+		std::string m = Lower(a_model);
+		std::replace(m.begin(), m.end(), '\\', '/');
+		if (m.starts_with("meshes/")) { m.erase(0, 7); }
 		for (const auto& frag : CurrentTable().lists[static_cast<std::size_t>(settings::List::kIceMesh)])
 		{
 			if (!frag.empty() && m.find(frag) != std::string::npos) { return true; }
@@ -246,6 +262,14 @@ namespace surface
 
 		const Table& t = CurrentTable();
 		const RE::NiPoint3 pos = a_actor->GetPosition();
+
+		// ICE first, by Ice is Slick's own test: the collision material the character controller stands on (landscape
+		// and meshes alike - 78b3 read LFrozenMarshIce01 as material Ice). A match is ICE whatever the texture says.
+		if (const RE::bhkCharacterController* cc = a_actor->GetCharController())
+		{
+			r.material = static_cast<std::uint32_t>(cc->surfaceMaterial);
+			if (IsIceMaterial(r.material)) { r.kind = Kind::kIce; r.why = "ice material"; return r; }
+		}
 
 		// Roof: one ray straight up (78b3: 238 units under Windhelm's gatehouse, none in open snow).
 		const float up0 = settings::probe::roofRayStart.load();

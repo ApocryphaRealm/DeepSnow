@@ -8,7 +8,11 @@
 // a mesh: rock, bridge, dock, ice floe) and one straight up (a roof within fShelterHeight = sheltered, no snow), and for
 // the player the navmesh triangle's "preferred path" flag (roads; world coordinates, confirmed).
 //
-// Which surface a texture is lives in five lists in the INI ([Surfaces] sSnow / sTrail / sRoad / sIce / sIceMeshes),
+// ICE comes first and matches Ice is Slick's own test (IceIsSlickTable.h): the character controller's support
+// collision material (MaterialIce / MaterialIceForm), then its frozen-water meshes, then the ice texture names.
+//
+// Which surface a texture is lives in six lists in the INI ([Surfaces] sSnow / sTrail / sRoad / sIce / sIceMeshes /
+// sIceMaterials),
 // so the table is changed without a rebuild - from the page's "mark the ground under me" buttons or by hand.
 
 #include <cstdint>
@@ -39,6 +43,7 @@ namespace surface
 		bool navmeshRead = false;
 		bool sheltered = false;         // a roof within fShelterHeight
 		float roofDistance = -1.0F;
+		std::uint32_t material = 0;     // the character controller's support collision material (0 = none read)
 	};
 
 	// Reads the ground under a_actor. a_wantNavmesh: the triangle walk is the expensive part, so only the player asks.
@@ -47,5 +52,6 @@ namespace surface
 	// The surface table on its own (for DevBench and the page): which list a texture stem falls in.
 	Kind ClassifyTexture(const std::string& a_stem);
 	bool IsIceMesh(const std::string& a_model);
+	bool IsIceMaterial(std::uint32_t a_material);
 	std::string Stem(const char* a_path);  // "PBR\\Landscape\\Snow01.dds" -> "snow01"
 }

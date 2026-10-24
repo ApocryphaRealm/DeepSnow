@@ -130,7 +130,6 @@ namespace settings
 				k.push_back(B("General", "bRefreshSpeed", general::refreshSpeed));
 				k.push_back(F("Depth", "fSnow", depth::snow));
 				k.push_back(F("Depth", "fTrail", depth::trail));
-				k.push_back(F("Depth", "fRoad", depth::road));
 				k.push_back(F("Depth", "fObject", depth::object));
 				k.push_back(F("Depth", "fOther", depth::other));
 				k.push_back(F("Depth", "fShelterHeight", depth::shelterHeight));
@@ -282,11 +281,11 @@ namespace settings
 		bool changed = false;
 		{
 			std::scoped_lock l(listLock);
-			const bool isMesh = a_list == List::kIceMesh;
 			for (int i = 0; i < static_cast<int>(List::kCount); ++i)
 			{
 				const bool targetIsThis = i == static_cast<int>(a_list);
-				const bool sameKind = (i == static_cast<int>(List::kIceMesh)) == isMesh;
+				// A texture is one surface: marking it takes it out of the other texture lists (never the mesh or material lists).
+				const bool sameKind = IsTextureList(a_list) && IsTextureList(static_cast<List>(i));
 				auto& v = lists[static_cast<std::size_t>(i)];
 				if (targetIsThis)
 				{
@@ -371,7 +370,7 @@ namespace settings
 		ClampAtomic(general::tickMs, 50u, 2000u);
 		ClampAtomic(general::actorsPerTick, 0u, 64u);
 		ClampAtomic(general::scanRadius, 512.0F, 20000.0F);
-		for (auto* v : { &depth::snow, &depth::trail, &depth::road, &depth::object, &depth::other }) { ClampAtomic(*v, 0.0F, 1.0F); }
+		for (auto* v : { &depth::snow, &depth::trail, &depth::object, &depth::other }) { ClampAtomic(*v, 0.0F, 1.0F); }
 		ClampAtomic(depth::shelterHeight, 0.0F, 4096.0F);
 		ClampAtomic(depth::fullDepthUnits, 1.0F, 200.0F);
 		for (auto& b : bands)
@@ -443,7 +442,6 @@ namespace settings
 		general::refreshSpeed = true;
 		depth::snow = 1.0F;
 		depth::trail = 0.35F;
-		depth::road = 0.0F;
 		depth::object = 0.0F;
 		depth::other = 0.0F;
 		depth::shelterHeight = 1024.0F;

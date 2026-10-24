@@ -14,6 +14,8 @@
 #include <string>
 #include <vector>
 
+#include "IceIsSlickTable.h"
+
 namespace settings
 {
 	inline constexpr int kBandCount = 5;
@@ -34,7 +36,6 @@ namespace settings
 	{
 		inline std::atomic<float> snow = 1.0F;           // fSnow:Depth - SNOW row: full blanket
 		inline std::atomic<float> trail = 0.35F;         // fTrail:Depth - TRAIL row (snowy paths): a trench
-		inline std::atomic<float> road = 0.0F;           // fRoad:Depth - ROAD row: no snow to wade
 		inline std::atomic<float> object = 0.0F;         // fObject:Depth - standing on a mesh (rock, bridge, dock)
 		inline std::atomic<float> other = 0.0F;          // fOther:Depth - landscape no list names (1.0 for an all-snow list)
 		inline std::atomic<float> shelterHeight = 1024.0F;  // fShelterHeight:Depth - a roof within this many units overhead = no snow
@@ -107,11 +108,16 @@ namespace settings
 	}
 
 	// The surface lists: landscape texture file stems (no folder, no .dds, lower case; '*' matches anything) and, for
-	// ICE, mesh path fragments. Comma-separated in the INI's [Surfaces] section.
-	enum class List : int { kSnow = 0, kTrail, kRoad, kIce, kIceMesh, kCount };
-	inline constexpr const char* kListKeys[] = { "sSnow", "sTrail", "sRoad", "sIce", "sIceMeshes" };
-	inline constexpr const char* kListDefaults[] = { "snow01,snow02,snowrocks01", "dirtsnowpath01,*_trail*", "snowcobble01",
-		"frozenmarshice01,frozenmarshice02", "icefloe,iceberg,frozenlake" };
+	// ICE, mesh path fragments and collision-material IDs. Comma-separated in the INI's [Surfaces] section. The ICE
+	// defaults are Ice is Slick's own ice list (IceIsSlickTable.h, with the version it was taken from).
+	// ROAD defaults: vanilla road01* (road01snow01, road01reach01, road01fallforest01) and Northern Roads' (COTN) dirt
+	// road grounddirt01 / _winter / _trail* (78b3 met grounddirt01 on the Whiterun stables road and its _trail edges).
+	enum class List : int { kSnow = 0, kTrail, kRoad, kIce, kIceMesh, kIceMaterial, kCount };
+	inline constexpr const char* kListKeys[] = { "sSnow", "sTrail", "sRoad", "sIce", "sIceMeshes", "sIceMaterials" };
+	inline constexpr const char* kListDefaults[] = { "snow01,snow02,snowrocks01", "dirtsnowpath01,*_trail*",
+		"road01*,grounddirt01,grounddirt01_winter,grounddirt01_trail*", ice_is_slick::kTextures, ice_is_slick::kMeshes,
+		ice_is_slick::kMaterials };
+	inline constexpr bool IsTextureList(List a_list) { return a_list != List::kIceMesh && a_list != List::kIceMaterial; }
 
 	std::vector<std::string> GetList(List a_list);
 	void SetList(List a_list, std::vector<std::string> a_items);

@@ -161,6 +161,7 @@ namespace UI
 			Switch(TR("DS_Enabled", "Deep snow slows you down"), general::enabled, TR("DS_HelpEnabled", "Off removes every Deep Snow effect at once."));
 			Switch(TR("DS_AffectNPCs", "Also slow other people and creatures"), general::affectNPCs,
 				TR("DS_HelpAffectNPCs", "Off: only you are slowed. Their footsteps still pack trails either way."));
+			ImGuiMCP::TextWrapped("%s", TR("DS_RoadsSafe", "Roads are never slowed and never cost stamina, whatever the snow."));
 			Switch(TR("DS_RoadBonus", "Faster travel on roads"), roads::bonus, TR("DS_HelpRoadBonus", "Optional. Off by default."));
 			if (roads::bonus) { Slider(TR("DS_RoadSpeed", "Speed on roads"), roads::speed, 100.0F, 150.0F, "%.0f %%", TR("DS_HelpRoadSpeed", "100% is normal speed.")); }
 		}

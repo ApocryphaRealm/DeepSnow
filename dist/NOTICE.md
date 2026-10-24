@@ -28,3 +28,9 @@ Components under other licences, with their notices: `THIRD_PARTY_NOTICES.md`.
 Written for this project. No code of Dynamic Terrain Deformation (GPL-3.0-only) or Speed of Strolling is used or read
 into this mod: the ground classification follows the general idea of reading the landscape texture under the player
 and the navmesh's preferred-path flag, written here from the game's own data.
+
+The ICE row's default lists (`include/IceIsSlickTable.h` and `[Surfaces] sIceMaterials / sIceMeshes / sIce` in the INI)
+are the ice collision materials, frozen-water mesh paths and ice texture names that **Ice is Slick** by Ckw25
+(https://www.nexusmods.com/skyrimspecialedition/mods/190881, GPL-3.0-or-later) recognises, read from its 1.0.3.2 source
+archive so that the two mods never act on the same ground. They are listed as data; no Ice is Slick code is used.
+Ice is Slick's licence is the same GPL-3.0-or-later as this mod's.

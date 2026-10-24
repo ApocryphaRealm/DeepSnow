@@ -6,13 +6,14 @@
 //
 //   depth % = 100 x row   x cover x (1 - packing x (1 - packedRemain)) x (1 + snowfall)      and 0 under a roof
 //
-//   row      the surface row's depth fraction (SNOW 1.0, TRAIL 0.35, ROAD 0, OBJECT 0, OTHER 0 - [Depth] in the INI)
+//   row      the surface row's depth fraction (SNOW 1.0, TRAIL 0.35, OBJECT 0, OTHER 0 - [Depth] in the INI)
 //   cover    snow cover under the feet from the land's blend layers (SNOW rows only; 0..1)
 //   packing  the trail packing at that square from every actor's passes (Trails.h; 0..1)
 //   snowfall the snowfall boost (0..fMax/100) while bDeepens is on
 //
 // 100 % is "a full untouched blanket", which in DTD's own terms is SnowRaiseHeight units (read from DTD's INI when it
-// is installed, else fFullDepthUnits). ICE is never deep: Ice is Slick owns ice.
+// is installed, else fFullDepthUnits). ICE and ROAD are never deep: Ice is Slick owns ice,
+// and roads are always exempt (no band, no drain; the optional road bonus is separate).
 
 #include "Surface.h"
 

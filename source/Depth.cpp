@@ -25,16 +25,17 @@ namespace depth
 		{
 		case K::kSnow: return settings::depth::snow.load();
 		case K::kTrail: return settings::depth::trail.load();
-		case K::kRoad: return settings::depth::road.load();
 		case K::kObject: return settings::depth::object.load();
 		case K::kOther: return settings::depth::other.load();
-		default: return 0.0F;  // NONE and ICE
+		default: return 0.0F;  // NONE, ROAD and ICE
 		}
 	}
 
 	float Percent(const surface::Reading& a_r, float a_packing, float a_snowfall)
 	{
-		if (a_r.kind == surface::Kind::kNone || a_r.kind == surface::Kind::kIce || a_r.sheltered) { return 0.0F; }
+		// ROAD is always exempt (the owner, 2026-10-24: "roads should be safe from this kind of debuff") - no depth, so no
+		// band and no drain, whatever cover, packing or snowfall say. ICE is Ice is Slick's.
+		if (a_r.kind == surface::Kind::kNone || a_r.kind == surface::Kind::kIce || a_r.kind == surface::Kind::kRoad || a_r.sheltered) { return 0.0F; }
 		const float row = RowFraction(a_r.kind);
 		const float cover = a_r.kind == surface::Kind::kSnow ? std::clamp(a_r.cover, 0.0F, 1.0F) : 1.0F;
 		const float remain = std::clamp(settings::trails::packedRemain.load(), 0.0F, 1.0F);

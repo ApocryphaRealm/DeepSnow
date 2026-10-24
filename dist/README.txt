@@ -12,7 +12,9 @@ HOW IT WORKS
   - Five depth bands, each with a depth, a speed and a small stamina cost per second while you move. The speed change
     is a magic effect (an ability from DeepSnow.esp) added while you stand in the band and removed when you leave, so it
     adds to whatever Inertia, Dynamic Sprint, Survival Mode or any other mod does to your speed.
-  - Ice is left to Ice is Slick: no slowdown and no stamina cost on ice.
+  - Roads are never slowed and never cost stamina, whatever the snow.
+  - Ice is left to Ice is Slick: no slowdown and no stamina cost on the ground it treats as ice (its ice list, taken
+    from Ice is Slick 1.0.3.2).
   - Optional: faster travel on roads, snowfall that deepens the snow, NPCs slowed too (all off by default).
 
 SETTINGS
