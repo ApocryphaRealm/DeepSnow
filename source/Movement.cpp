@@ -376,12 +376,12 @@ namespace movement
 		}
 		const auto& r = s.reading;
 		return std::format(
-			"{{\"havePlayer\":{},\"enabled\":{},\"effectsReady\":{},\"surface\":\"{}\",\"why\":\"{}\",\"texture\":\"{}\",\"model\":\"{}\",\"material\":{},\"cover\":{:.3f},"
+			"{{\"havePlayer\":{},\"enabled\":{},\"effectsReady\":{},\"surface\":\"{}\",\"why\":\"{}\",\"texture\":\"{}\",\"landTexture\":\"{:08X}\",\"model\":\"{}\",\"material\":{},\"cover\":{:.3f},"
 			"\"preferred\":{},\"navmeshRead\":{},\"sheltered\":{},\"roofDistance\":{:.1f},\"packing\":{:.3f},\"snowfall\":{:.3f},\"snowing\":{},"
 			"\"depthPercent\":{:.2f},\"fullDepthUnits\":{:.1f},\"fullDepthSource\":\"{}\",\"depthUnits\":{:.2f},\"groundBand\":{},\"band\":{},\"forcedBand\":{},\"road\":{},"
 			"\"moving\":{},\"speedMult\":{:.2f},\"stamina\":{:.2f},\"drainedLastSecond\":{:.3f},\"ticks\":{},\"tickUsAvg\":{:.1f},\"tickUsMax\":{:.1f},"
 			"\"npcsNear\":{},\"npcsClassified\":{},\"npcsAffected\":{},\"affectNPCs\":{},\"trailSquares\":{},\"bands\":[{}]}}",
-			B(s.havePlayer), B(s.enabled), B(s.effectsReady), surface::Name(r.kind), Esc(r.why ? r.why : ""), Esc(r.texture), Esc(r.model), r.material, r.cover, B(r.preferred),
+			B(s.havePlayer), B(s.enabled), B(s.effectsReady), surface::Name(r.kind), Esc(r.why ? r.why : ""), Esc(r.texture), r.landTexture, Esc(r.model), r.material, r.cover, B(r.preferred),
 			B(r.navmeshRead), B(r.sheltered), r.roofDistance, s.packing, s.snowfall, B(s.snowing), s.depthPercent, depth::FullDepthUnits(), depth::FullDepthSource(),
 			s.depthPercent / 100.0F * depth::FullDepthUnits(), s.groundBand, s.band, s.forcedBand, B(s.road), B(s.moving), s.speedMult, s.stamina, s.drainedLastSecond,
 			s.ticks, s.tickUsAvg, s.tickUsMax, s.npcsNear, s.npcsClassified, s.npcsAffected, B(settings::general::affectNPCs), s.trailSquares, bands);

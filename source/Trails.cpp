@@ -67,6 +67,25 @@ namespace trails
 		constexpr std::uint32_t kRecordSize = 4 + 4 + 4 + 4 + 4 + 4 + 1 + 2;
 	}
 
+	namespace
+	{
+		// One pass over square a_k (lock held).
+		void Credit(const Key& a_k, Who a_who, float a_nowDays)
+		{
+			Cell& c = cells[a_k];
+			const float before = Current(c, a_nowDays, false);
+			c.packing = std::min(1.0F, before + settings::trails::packPerPass.load());
+			c.asOfDays = a_nowDays;
+			c.lastDays = a_nowDays;
+			c.who = a_who;
+			if (c.passes < 0xFFFF) { ++c.passes; }
+			if (a_who == Who::kPlayer)
+			{
+				logger::trace("[trails] player pass at ({},{}) ws {:08X}: packing {:.2f} -> {:.2f} (passes {})", a_k.gx, a_k.gy, a_k.ws, before, c.packing, c.passes);
+			}
+		}
+	}
+
 	void Stamp(std::uint32_t a_actorId, std::uint32_t a_worldspace, float a_x, float a_y, Who a_who, float a_nowDays)
 	{
 		if (!settings::trails::enabled || a_worldspace == 0) { return; }
@@ -74,18 +93,20 @@ namespace trails
 		std::scoped_lock l(lock);
 		auto it = lastSquare.find(a_actorId);
 		if (it != lastSquare.end() && it->second == k) { return; }  // still in the same square: not a new pass
+		// The pass counts on the square the actor LEFT, never on the one it stands in (ff5b: counting on entry put the
+		// actor's own pass under its feet, so untouched snow read 85 %). An actor seen for the first time - after a load,
+		// a cell change or a fresh start - only records where it stands; a load no longer adds a pass to every square
+		// someone is standing on (ff5b: +1 pass per occupied square after loading).
+		if (it != lastSquare.end()) { Credit(it->second, a_who, a_nowDays); }
 		lastSquare[a_actorId] = k;
-		Cell& c = cells[k];
-		const float before = Current(c, a_nowDays, false);
-		c.packing = std::min(1.0F, before + settings::trails::packPerPass.load());
-		c.asOfDays = a_nowDays;
-		c.lastDays = a_nowDays;
-		c.who = a_who;
-		if (c.passes < 0xFFFF) { ++c.passes; }
-		if (a_who == Who::kPlayer)
-		{
-			logger::trace("[trails] player pass at ({},{}) ws {:08X}: packing {:.2f} -> {:.2f} (passes {})", k.gx, k.gy, k.ws, before, c.packing, c.passes);
-		}
+	}
+
+	void AddPasses(std::uint32_t a_worldspace, float a_x, float a_y, Who a_who, float a_nowDays, int a_passes)
+	{
+		if (!settings::trails::enabled || a_worldspace == 0) { return; }
+		const Key k = KeyFor(a_worldspace, a_x, a_y);
+		std::scoped_lock l(lock);
+		for (int i = 0; i < a_passes; ++i) { Credit(k, a_who, a_nowDays); }
 	}
 
 	float PackingAt(std::uint32_t a_worldspace, float a_x, float a_y, float a_nowDays, bool a_snowing)

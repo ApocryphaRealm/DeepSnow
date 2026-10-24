@@ -304,7 +304,9 @@ namespace surface
 			r.why = "no TES";
 			return r;
 		}
-		r.texture = StemOf(tes->GetLandTexture(pos));
+		const RE::TESLandTexture* lt = tes->GetLandTexture(pos);
+		r.landTexture = lt ? lt->GetFormID() : 0;
+		r.texture = StemOf(lt);
 		r.kind = r.texture.empty() ? Kind::kOther : ClassifyTexture(r.texture);
 		r.why = r.texture.empty() ? "default land texture" : "land texture";
 		if (r.kind == Kind::kIce) { return r; }

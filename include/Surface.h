@@ -37,6 +37,7 @@ namespace surface
 		Kind kind = Kind::kNone;
 		const char* why = "not read";   // the branch that decided (a static string)
 		std::string texture;            // the engine pick's diffuse stem ("snow01"), empty if none
+		std::uint32_t landTexture = 0;  // that pick's LTEX form id (two LTEXes can share a diffuse: vanilla snow cobble draws SnowRocks01)
 		std::string model;              // the mesh under the feet when standing on one
 		float cover = 1.0F;             // snow cover under the feet from the blend layers, 0..1
 		bool preferred = false;         // navmesh preferred-path flag (player only)

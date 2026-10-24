@@ -80,8 +80,6 @@ namespace DevBenchTool
 			a_write(a_sink, std::format("{{\"ok\":true,\"op\":\"state\",\"tick\":{},\"effects\":{},\"strings\":{}}}", movement::Json(), effects::Json(), strings::StatusJson()).c_str());
 		}
 
-		std::atomic<std::uint32_t> stampId{ 0xDE000000u };
-
 		void ControlTool(void*, const char* a_argsJson, void* a_sink, DevBenchAPI::WriteFn a_write)
 		{
 			const std::string_view args = a_argsJson ? a_argsJson : "";
@@ -124,7 +122,7 @@ namespace DevBenchTool
 			if (op == "cleartrails") { movement::RequestClearTrails(); reply(true, "queued: trails cleared"); return; }
 			if (op == "stamp")
 			{
-				// Adds N passes of packing at the player's square (each from a fresh pretend actor, so each counts) - the
+				// Adds N passes of packing at the player's square (credited straight to the square) - the
 				// co-save round trip test needs trail data without walking.
 				const int passes = std::clamp(ToInt(Get(args, "passes"), 1), 1, 50);
 				Queue([passes]() {
@@ -133,7 +131,7 @@ namespace DevBenchTool
 					const RE::Calendar* cal = RE::Calendar::GetSingleton();
 					if (!player || !ws || !cal) { logger::warn("[devbench] stamp: no player in a worldspace"); return; }
 					const RE::NiPoint3 p = player->GetPosition();
-					for (int i = 0; i < passes; ++i) { trails::Stamp(stampId++, ws->GetFormID(), p.x, p.y, trails::Who::kNPC, cal->GetDaysPassed()); }
+					trails::AddPasses(ws->GetFormID(), p.x, p.y, trails::Who::kNPC, cal->GetDaysPassed(), passes);
 					logger::info("[devbench] stamp: {} pass(es) at ({:.0f},{:.0f}) ws {:08X}", passes, p.x, p.y, ws->GetFormID());
 				});
 				reply(true, std::format("queued: {} pass(es) at the player", passes));

@@ -3,7 +3,8 @@
 // Deep Snow - packed trails, from ANY actor (the owner, 2026-10-24: "Packed trails should come from anyone").
 //
 // The world is cut into squares fCellSize units on a side (128 = one LAND vertex step) per worldspace. Each time an
-// actor enters a square it adds fPackPerPass to that square's packing (0..1). Packing fills back in linearly: a full
+// actor LEAVES a square it adds fPackPerPass to that square's packing (0..1) - never to the square it stands in, so an
+// actor never reads its own pass under its feet, and an actor first seen (after a load) adds nothing. Packing fills back in linearly: a full
 // packing is gone fLifeHours game hours after the last pass (fSnowRefill times faster while it snows). The packing
 // lowers the modelled depth there (Depth.h). The list is kept in the SKSE co-save (record 'TRLS', versioned) so a trail
 // survives a save and load; a revert (new game, load of another save) clears it.
@@ -21,8 +22,11 @@ namespace trails
 {
 	enum class Who : std::uint8_t { kPlayer = 0, kNPC = 1, kCreature = 2 };
 
-	// An actor at a_pos in a_worldspace. Adds packing only when a_actorId entered a new square since its last stamp.
+	// An actor at a_pos in a_worldspace. When a_actorId has moved to a new square since its last stamp, the square it
+	// left gets one pass; the square it stands in gets nothing until it leaves.
 	void Stamp(std::uint32_t a_actorId, std::uint32_t a_worldspace, float a_x, float a_y, Who a_who, float a_nowDays);
+	// a_passes passes on the square at a_pos at once (DevBench stamp - the co-save test needs trail data without walking).
+	void AddPasses(std::uint32_t a_worldspace, float a_x, float a_y, Who a_who, float a_nowDays, int a_passes);
 	// 0..1 at a position, after fill-in up to a_nowDays.
 	float PackingAt(std::uint32_t a_worldspace, float a_x, float a_y, float a_nowDays, bool a_snowing);
 	// Drops squares that have filled in, and the oldest beyond uMaxCells. Cheap to call once a second.
