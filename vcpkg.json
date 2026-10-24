@@ -1,7 +1,7 @@
 {
     "name": "deepsnow",
     "version-string": "1.0.0",
-    "description": "Deep Snow - deep snow slows you and drains stamina a little, packed trails and roads stay fast. Spike build: read-only ground probe (landscape texture, navmesh preferred path, roof raycast) logged at 2 Hz.",
+    "description": "Deep Snow - deep snow slows you and drains stamina a little through SpeedMult ability effects in depth bands; packed trails from every actor and roads stay fast.",
     "homepage": "https://github.com/ApocryphaRealm/DeepSnow",
     "license": "GPL-3.0-or-later",
     "dependencies": [

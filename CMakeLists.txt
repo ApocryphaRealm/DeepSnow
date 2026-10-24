@@ -18,6 +18,9 @@ configure_file(
 	@ONLY
 )
 
+# The settings page draws through the vendored include/SKSEMenuFramework.h (Apocrypha Menu Framework / SKSE Menu
+# Framework exports, resolved at run time - no link dependency). Named here so the package gate's page rows
+# (sliders-are-precise, checkbox-is-a-toggle) apply to this repo.
 file(GLOB_RECURSE headers CONFIGURE_DEPENDS "include/*.h")
 file(GLOB_RECURSE sources CONFIGURE_DEPENDS "source/*.cpp")
 

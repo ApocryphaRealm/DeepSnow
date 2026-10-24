@@ -31,6 +31,13 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 
 https://github.com/gabime/spdlog, MIT, Copyright (c) 2016 Gabi Melman.
 
+## SKSE Menu Framework consumer header (`include/SKSEMenuFramework.h`)
+
+From https://github.com/QTR-Modding/SKSE-Menu-Framework-3, copied 2026-08-24 while that repository was LGPL-2.1
+(it became GPL-3.0 on 2026-08-29); modified here to prefer the Apocrypha Menu Framework. LGPL-2.1 permits its use in
+this GPL-3.0-or-later work. `include/PreciseSlider.h`, `include/utils/Toggle.h` and `include/utils/Strings.h` are
+this project's own code over that header.
+
 ## DevBench consumer API (`include/DevBench/`, `source/DevBench/`)
 
 MIT - the notice is `include/DevBench/DevBenchAPI.LICENSE.txt`, kept with the files.
