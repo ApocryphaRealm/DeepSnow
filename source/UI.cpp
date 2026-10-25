@@ -6,6 +6,7 @@
 
 #include "SKSEMenuFramework.h"
 #include "PreciseSlider.h"
+#include "SliderNudge.h"
 
 #include "Depth.h"
 #include "Movement.h"
@@ -48,7 +49,10 @@ namespace UI
 		{
 			constexpr const char* required[] = {
 				"AddSectionItem", "igTextV", "igTextDisabledV", "igTextWrappedV", "igSetTooltipV", "igSeparatorText", "igCombo_Str_arr", "igSliderFloat",
-				"igIsKeyDown_Nil", "igIsMouseDown_Nil", "igIsItemHovered", "igButton", "igSameLine", "igSpacing", "igPushItemWidth", "igPopItemWidth",
+				"igIsKeyDown_Nil", "igIsMouseDown_Nil", "igIsItemHovered",
+				// precise::HighlightNudge (include/SliderNudge.h): the highlighted slider takes Left / Right
+				"igIsItemFocused", "igIsItemActive", "igIsKeyPressed_Bool", "igNavMoveRequestCancel",
+				"igButton", "igSameLine", "igSpacing", "igPushItemWidth", "igPopItemWidth",
 				"igBeginTable", "igEndTable", "igTableSetupColumn", "igTableHeadersRow", "igTableNextRow", "igTableNextColumn", "igSetNextItemWidth",
 				// utils/Toggle.h
 				"igGetCursorScreenPos", "igGetWindowDrawList", "igGetFrameHeight", "igInvisibleButton", "igPushID_Str", "igPopID", "ImDrawList_AddRectFilled",
@@ -87,10 +91,17 @@ namespace UI
 		}
 
 		// rule 68: precise::SliderFloat holds a keyboard / D-pad nudge to one unit of the digit the format shows.
+		// 1.1.0: precise::HighlightNudge - a slider that only holds the highlight steps on Left / Right (arrow keys and D-pad)
+		// too, without being activated, and keeps the highlight (in the band table Right used to move to the next column).
 		bool Slider(const char* a_label, std::atomic<float>& a_value, float a_min, float a_max, const char* a_format, const char* a_help)
 		{
 			float v = a_value.load();
-			const bool changed = precise::SliderFloat(a_label, &v, a_min, a_max, a_format);
+			bool changed = precise::SliderFloat(a_label, &v, a_min, a_max, a_format);
+			if (precise::HighlightNudge(&v, a_min, a_max, a_format))
+			{
+				changed = true;
+				logger::debug("[page] {} nudged on the highlight -> {}", a_label, v);
+			}
 			if (changed)
 			{
 				a_value = std::clamp(v, a_min, a_max);

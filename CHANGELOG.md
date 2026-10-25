@@ -19,6 +19,7 @@ Written as changes happen, not reconstructed afterwards (rule 61). Each version 
 
 ### Fixed
 - Precise sliders now clamp a typed value: every slider is drawn with ImGuiSliderFlags_AlwaysClamp and the value is clamped again after the call (include\PreciseSlider.h, from Dragon's Eye Minimap 7c3ce18). Typing a number above a slider's range (Ctrl+click) could otherwise leave it unclamped and re-applied every frame.
+- A highlighted slider now steps on Left / Right without being activated, the same way everywhere on the page (the owner, 2026-10-25: one consistent way). Keyboard Left / Right and the D-pad move it one unit of its shown digit (with key repeat when held) and the highlight stays on it. In the depth-band table, Right used to move the highlight to the next column, and the keys changed a band value only after the slider was activated with A, Space or Enter (combined run 2026-10-25, request 04f6 step 8). Cause: Dear ImGui changes a slider from the keys only while it is the active item, so a slider that only held the highlight handed Left / Right to navigation, and in the table the next column's slider was to the right. New include\SliderNudge.h (precise::HighlightNudge) steps the value and cancels ImGui's navigation move on every frame the key is down. Up / Down still move between rows, and activating a slider still works as before. Proven offline by tools\slider_nudge_check.bat (32 checks against the framework's own ImGui build, including a control table drawn the old way that shows the fault).
 
 ## 1.0.0 - 2026-10-24 - untested
 
