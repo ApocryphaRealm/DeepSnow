@@ -72,6 +72,7 @@ namespace movement
 			surface::Reading reading;
 			float packing = 0.0F;
 			float depth = 0.0F;
+			float sdUnits = -1.0F;
 			int groundBand = 0;
 			int band = 0;
 			bool road = false;
@@ -89,7 +90,8 @@ namespace movement
 				trails::Stamp(a_actor->GetFormID(), ws->GetFormID(), pos.x, pos.y, WhoOf(a_actor), a_now);
 				r.packing = trails::PackingAt(ws->GetFormID(), pos.x, pos.y, a_now, a_snowing);
 			}
-			r.depth = depth::Percent(r.reading, r.packing, snowfallBoost.load());
+			// Snow Deformation's depth already carries its accumulation, so our snowfall boost applies only to our own model.
+			r.depth = depth::PercentFor(a_actor, r.reading, r.packing, snowfallBoost.load(), &r.sdUnits);
 			r.groundBand = depth::BandFor(r.depth);
 			r.band = r.groundBand;
 			r.road = r.reading.kind == surface::Kind::kRoad && settings::roads::bonus;
@@ -111,9 +113,9 @@ namespace movement
 			{
 				if (a_isPlayer || s.band != r.band || s.road != r.road)
 				{
-					logger::debug("[tick] {:08X}{}: {} ({}) tex='{}' cover={:.2f} packing={:.2f} sheltered={} depth={:.1f}% -> band {} -> {}{}{}", a_actor->GetFormID(),
+					logger::debug("[tick] {:08X}{}: {} ({}) tex='{}' cover={:.2f} packing={:.2f} sheltered={} sd={:.1f}u depth={:.1f}% -> band {} -> {}{}{}", a_actor->GetFormID(),
 						a_isPlayer ? " (player)" : "", surface::Name(r.reading.kind), r.reading.why, r.reading.texture, r.reading.cover, r.packing, r.reading.sheltered,
-						r.depth, r.groundBand, r.band, r.road ? " +road" : "", a_isPlayer && forced.load() >= 0 ? " (forced)" : "");
+						r.sdUnits, r.depth, r.groundBand, r.band, r.road ? " +road" : "", a_isPlayer && forced.load() >= 0 ? " (forced)" : "");
 				}
 				s.band = r.band;
 				s.road = r.road;
@@ -292,6 +294,8 @@ namespace movement
 			snap.packing = pr.packing;
 			snap.snowfall = snowfallBoost.load();
 			snap.depthPercent = pr.depth;
+			snap.depthSource = static_cast<int>(depth::ActiveSource());
+			snap.sdUnits = pr.sdUnits;
 			snap.groundBand = pr.groundBand;
 			snap.band = pr.band;
 			snap.forcedBand = forced.load();
@@ -378,11 +382,13 @@ namespace movement
 		return std::format(
 			"{{\"havePlayer\":{},\"enabled\":{},\"effectsReady\":{},\"surface\":\"{}\",\"why\":\"{}\",\"texture\":\"{}\",\"landTexture\":\"{:08X}\",\"model\":\"{}\",\"material\":{},\"cover\":{:.3f},"
 			"\"preferred\":{},\"navmeshRead\":{},\"sheltered\":{},\"roofDistance\":{:.1f},\"packing\":{:.3f},\"snowfall\":{:.3f},\"snowing\":{},"
-			"\"depthPercent\":{:.2f},\"fullDepthUnits\":{:.1f},\"fullDepthSource\":\"{}\",\"depthUnits\":{:.2f},\"groundBand\":{},\"band\":{},\"forcedBand\":{},\"road\":{},"
+			"\"depthPercent\":{:.2f},\"depthSource\":\"{}\",\"depthSourceSetting\":{},\"sdFound\":{},\"sdActive\":{},\"sdUnits\":{:.2f},\"sdFullDepthUnits\":{:.1f},"
+			"\"fullDepthUnits\":{:.1f},\"fullDepthSource\":\"{}\",\"depthUnits\":{:.2f},\"groundBand\":{},\"band\":{},\"forcedBand\":{},\"road\":{},"
 			"\"moving\":{},\"speedMult\":{:.2f},\"stamina\":{:.2f},\"drainedLastSecond\":{:.3f},\"ticks\":{},\"tickUsAvg\":{:.1f},\"tickUsMax\":{:.1f},"
 			"\"npcsNear\":{},\"npcsClassified\":{},\"npcsAffected\":{},\"affectNPCs\":{},\"trailSquares\":{},\"bands\":[{}]}}",
 			B(s.havePlayer), B(s.enabled), B(s.effectsReady), surface::Name(r.kind), Esc(r.why ? r.why : ""), Esc(r.texture), r.landTexture, Esc(r.model), r.material, r.cover, B(r.preferred),
-			B(r.navmeshRead), B(r.sheltered), r.roofDistance, s.packing, s.snowfall, B(s.snowing), s.depthPercent, depth::FullDepthUnits(), depth::FullDepthSource(),
+			B(r.navmeshRead), B(r.sheltered), r.roofDistance, s.packing, s.snowfall, B(s.snowing), s.depthPercent, depth::SourceName(static_cast<depth::Source>(s.depthSource)), settings::depth::source.load(),
+			B(depth::SnowDeformationFound()), B(depth::SnowDeformationActive()), s.sdUnits, settings::depth::sdFullDepthUnits.load(), depth::FullDepthUnits(), depth::FullDepthSource(),
 			s.depthPercent / 100.0F * depth::FullDepthUnits(), s.groundBand, s.band, s.forcedBand, B(s.road), B(s.moving), s.speedMult, s.stamina, s.drainedLastSecond,
 			s.ticks, s.tickUsAvg, s.tickUsMax, s.npcsNear, s.npcsClassified, s.npcsAffected, B(settings::general::affectNPCs), s.trailSquares, bands);
 	}

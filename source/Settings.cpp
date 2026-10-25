@@ -135,6 +135,8 @@ namespace settings
 				k.push_back(F("Depth", "fShelterHeight", depth::shelterHeight));
 				k.push_back(F("Depth", "fFullDepthUnits", depth::fullDepthUnits));
 				k.push_back(B("Depth", "bUseDTDHeight", depth::useDTDHeight));
+				k.push_back(U("Depth", "uSource", depth::source));
+				k.push_back(F("Depth", "fSDFullDepthUnits", depth::sdFullDepthUnits));
 				for (int i = 0; i < kBandCount; ++i)
 				{
 					k.push_back(F("Bands", std::format("fBand{}Depth", i + 1), bands[i].depth));
@@ -373,6 +375,8 @@ namespace settings
 		for (auto* v : { &depth::snow, &depth::trail, &depth::object, &depth::other }) { ClampAtomic(*v, 0.0F, 1.0F); }
 		ClampAtomic(depth::shelterHeight, 0.0F, 4096.0F);
 		ClampAtomic(depth::fullDepthUnits, 1.0F, 200.0F);
+		ClampAtomic(depth::sdFullDepthUnits, 5.0F, 100.0F);
+		if (depth::source.load() > 2) { depth::source = 0; }
 		for (auto& b : bands)
 		{
 			ClampAtomic(b.depth, 0.0F, 150.0F);
@@ -447,6 +451,8 @@ namespace settings
 		depth::shelterHeight = 1024.0F;
 		depth::fullDepthUnits = 35.0F;
 		depth::useDTDHeight = true;
+		depth::source = 0;
+		depth::sdFullDepthUnits = 30.0F;
 		for (int i = 0; i < kBandCount; ++i)
 		{
 			bands[i].depth = kBandDefaults[i].depth;

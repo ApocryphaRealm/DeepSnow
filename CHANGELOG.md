@@ -8,6 +8,18 @@ Written as changes happen, not reconstructed afterwards (rule 61). Each version 
 * **failed** - built but crashed or malfunctioned; the number was reclaimed
 * **scratch** - a hypothesis-test build that never held a real number
 
+## 1.1.0 - 2026-10-25 - untested
+
+### Added
+- Snow Deformation support: when Community Shaders' Snow Deformation feature is installed and switched on, the depth under each actor comes from its public API (SnowDeformation_GetAPI, version 1, resolved after kPostPostLoad and once more at data load; header include\SnowDeformationAPI.h, GPL-3.0-or-later, vendored unchanged). Its reading is in game units and already includes its accumulation, so it becomes % of a full blanket as 100 x units / fSDFullDepthUnits (default 30, its deepest default class at rest; its 1.5x accumulation peak reads 150 %), times Deep Snow's own trail packing. Deep Snow's own snowfall boost is not added on top. Roads, ice, a roof overhead and unread ground stay exempt; standing on an object keeps the OBJECT row. Landscape that no Deep Snow list names (OTHER) takes Snow Deformation's depth too, so a snow texture from any mod counts as soon as Snow Deformation sees snow there.
+- New INI keys [Depth] uSource (0 Auto = Snow Deformation when it is on, else Deep Snow's own model; 1 own model; 2 Snow Deformation, falling back to the own model while it is off) and fSDFullDepthUnits (5 to 100); compiled defaults match the INI.
+- Settings page: a Depth source choice (Auto / Deep Snow's own model / Snow Deformation), a Snow Deformation status line (found and on / found and switched off / not installed), the full-blanket slider when it is found, a Snow Deformation text for the depth explanation, and a note under Snowfall that its own snowfall is used while it is the source; every new string in all eleven languages.
+- deepsnow.state reports depthSource, depthSourceSetting, sdFound, sdActive, sdUnits (the raw reading under the player) and sdFullDepthUnits.
+- tools\check-band-mapping.cpp: an offline check of the Snow Deformation unit-to-band mapping against include\DepthMath.h, the arithmetic the plugin itself compiles (21 cases).
+
+### Fixed
+- Precise sliders now clamp a typed value: every slider is drawn with ImGuiSliderFlags_AlwaysClamp and the value is clamped again after the call (include\PreciseSlider.h, from Dragon's Eye Minimap 7c3ce18). Typing a number above a slider's range (Ctrl+click) could otherwise leave it unclamped and re-applied every frame.
+
 ## 1.0.0 - 2026-10-24 - untested
 
 ### Added

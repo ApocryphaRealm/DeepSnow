@@ -41,6 +41,8 @@ namespace settings
 		inline std::atomic<float> shelterHeight = 1024.0F;  // fShelterHeight:Depth - a roof within this many units overhead = no snow
 		inline std::atomic<float> fullDepthUnits = 35.0F;   // fFullDepthUnits:Depth - shown units of a full blanket when DTD's INI is absent
 		inline std::atomic<bool> useDTDHeight = true;       // bUseDTDHeight:Depth - read SnowRaiseHeight from DTD's INI for the shown units
+		inline std::atomic<std::uint32_t> source = 0;       // uSource:Depth - 0 Auto (Snow Deformation when on, else our model), 1 our model, 2 Snow Deformation
+		inline std::atomic<float> sdFullDepthUnits = 30.0F; // fSDFullDepthUnits:Depth - Snow Deformation's depth (game units) that counts as a full blanket (100 %)
 	}
 
 	struct Band

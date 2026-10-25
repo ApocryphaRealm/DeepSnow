@@ -1,7 +1,8 @@
 // Deep Snow - own code, GPL-3.0-or-later (2026-10-24). Deep snow slows you and costs a little stamina; packed trails
 // and roads stay fast. Movement changes are SpeedMult ability effects from DeepSnow.esp, added while an actor stands in
 // a depth band and removed when it leaves - never an absolute SpeedMult write - so they stack with Inertia, Dynamic
-// Sprint and Survival Mode. Depth is our own model (Depth.h); trails from every actor are kept in the co-save.
+// Sprint and Survival Mode. Depth comes from Snow Deformation (Community Shaders) when it is installed and on, else our
+// own model (Depth.h); trails from every actor are kept in the co-save.
 // The milestone-1 spike probe (Probe.cpp) stays in the build, off by default.
 #include "PCH.h"
 
@@ -29,12 +30,15 @@ namespace
 			DevBenchTool::Init(false);
 			break;
 		case SKSE::MessagingInterface::kPostPostLoad:
+			// Snow Deformation's author: resolve its API after kPostPostLoad, when every plugin is loaded.
+			depth::ResolveSnowDeformation("kPostPostLoad");
 			UI::Register();
 			break;
 		case SKSE::MessagingInterface::kDataLoaded:
 			strings::Configure("DeepSnow");
 			DevBenchTool::Init(true);
 			depth::ReadDTD();
+			depth::ResolveSnowDeformation("kDataLoaded");  // rule 17: a second try, logged once
 			effects::Init();
 			movement::Start();
 			probe::Start();

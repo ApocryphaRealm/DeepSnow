@@ -6,8 +6,13 @@ log and INI are `DeepSnow`.
 
 ## What it does
 
-- **Its own snow-depth model.** No mod can read the snow Dynamic Terrain Deformation draws, so Deep Snow estimates the
-  snow where an actor stands: the landscape texture underfoot (snow, trail, road, ice or other), the snow cover of the
+- **Snow Deformation support.** When Community Shaders' Snow Deformation feature is installed and on, Deep Snow reads
+  the real snow depth under each actor from its public API (game units, already deepened by its accumulation) and
+  turns it into the same depth bands: `fSDFullDepthUnits` units (default 30) count as a full blanket. Roads, ice, roofs
+  and packed trails work as before. `[Depth] uSource` picks the source: 0 Auto, 1 Deep Snow's own model, 2 Snow
+  Deformation.
+- **Its own snow-depth model** otherwise. The snow Dynamic Terrain Deformation draws cannot be read, so Deep Snow
+  estimates the snow where an actor stands: the landscape texture underfoot (snow, trail, road, ice or other), the snow cover of the
   terrain blend under the feet, the packing of trails, optional snowfall, and no snow under a roof. 100 % is a full,
   untouched blanket.
 - **Five depth bands.** Each has a starting depth, a movement speed and a stamina cost per second. The speed change is a
@@ -54,3 +59,5 @@ with their notices: `THIRD_PARTY_NOTICES.md`.
   header the settings page draws through.
 - DevBench for the testing API.
 - Dynamic Terrain Deformation: Deep Snow only reads its `SnowRaiseHeight` for the units shown. None of its code is used.
+- josefplyr1 for Snow Deformation (Community Shaders) and its public API, whose header (`include/SnowDeformationAPI.h`,
+  GPL-3.0-or-later) Deep Snow uses to read the snow depth.

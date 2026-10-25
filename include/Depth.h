@@ -1,8 +1,12 @@
 #pragma once
 
-// Deep Snow - the depth model. OUR OWN model of how deep the snow is where an actor stands; no plugin can read DTD's
-// real deformed height (it lives in GPU textures and DTD exports nothing). The depth sliders on the page are measured
-// against exactly this number:
+// Deep Snow - the depth model. Two sources, one scale (% of a full blanket, which the band sliders are measured in):
+//
+//   * Snow Deformation (Community Shaders) - its public API reports the real snow depth under an actor in game units
+//     (SnowDeformationAPI.h; resolved after kPostPostLoad). Converted to % by DepthMath.h. Used when [Depth] uSource is
+//     0 (Auto) and the feature is installed and on, or 2 (Snow Deformation) - which falls back to our model while it is off.
+//   * OUR OWN model (uSource 1, or Auto without Snow Deformation) - DTD's deformed height cannot be read (it lives in GPU
+//     textures and DTD exports nothing), so we estimate it:
 //
 //   depth % = 100 x row   x cover x (1 - packing x (1 - packedRemain)) x (1 + snowfall)      and 0 under a roof
 //
@@ -19,6 +23,7 @@
 
 namespace depth
 {
+	enum class Source : int { kAuto = 0, kModel = 1, kSnowDeformation = 2 };  // uSource:Depth
 	float RowFraction(surface::Kind a_kind);
 	// The model, in % of a full blanket.
 	float Percent(const surface::Reading& a_r, float a_packing, float a_snowfall);
@@ -26,6 +31,16 @@ namespace depth
 	int BandFor(float a_percent);
 	// Units of a full blanket (DTD's SnowRaiseHeight when read, else fFullDepthUnits) - for showing units beside %.
 	float FullDepthUnits();
-	const char* FullDepthSource();  // "DTD" or "INI"
+	const char* FullDepthSource();  // "DTD", "INI" or "SnowDeformation"
 	void ReadDTD();                 // once at data load: DTD's SnowRaiseHeight, if its INI is there
+
+	// Snow Deformation's API: resolved at kPostPostLoad, retried at kDataLoaded (rule 17). Read-only, any thread.
+	void ResolveSnowDeformation(const char* a_when);
+	bool SnowDeformationFound();   // the API resolved (Community Shaders carries the feature)
+	bool SnowDeformationActive();  // found AND switched on right now
+	Source ActiveSource();         // kModel or kSnowDeformation: what the next reading uses
+	const char* SourceName(Source a_source);
+	// The depth under an actor from the active source, in % of a full blanket. a_rawUnits (optional) gets Snow
+	// Deformation's raw reading in game units, or -1 when our model was used.
+	float PercentFor(RE::Actor* a_actor, const surface::Reading& a_r, float a_packing, float a_snowfall, float* a_rawUnits = nullptr);
 }

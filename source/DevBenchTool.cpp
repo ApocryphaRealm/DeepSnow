@@ -158,7 +158,7 @@ namespace DevBenchTool
 			"{"
 			"\"description\":\"Deep Snow - read-only state. op=state (default): tick = what the last tick decided for the player (surface snow/trail/road/ice/object/other/none, "
 			"why, texture stem, mesh model, support collision material (decimal; 873356572/2431524493 = ice, Ice is Slick's), snow cover 0..1, navmesh preferred, sheltered + roofDistance, trail packing 0..1, snowfall boost, depthPercent of a full blanket, "
-			"fullDepthUnits and its source DTD/INI, groundBand (ground alone) and band (applied), forcedBand, road bonus, moving, speedMult, stamina, drainedLastSecond, tick "
+			"depthSource (model or SnowDeformation), depthSourceSetting (uSource 0 auto/1 model/2 SnowDeformation), sdFound, sdActive, sdUnits (Snow Deformation raw game units under the player, -1 = not asked), sdFullDepthUnits, fullDepthUnits and its source DTD/INI/SnowDeformation, groundBand (ground alone) and band (applied), forcedBand, road bonus, moving, speedMult, stamina, drainedLastSecond, tick "
 			"timing in us, NPCs near/classified/affected, trailSquares, the band table; ROAD and ICE always read depthPercent 0, groundBand 0, no drain); effects = DeepSnow.esp forms found, each band ability's SpeedMult magnitude, actors "
 			"holding one; strings = the language loaded. op=settings: every INI key and value. op=trails n=N: newest N trail squares. op=probe / op=history n=N: the "
 			"milestone-1 spike probe (only when [Probe] bEnabled=1).\","

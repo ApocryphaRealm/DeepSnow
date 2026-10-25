@@ -82,6 +82,17 @@ WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEM
 COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+## Snow Deformation API header (`include/SnowDeformationAPI.h`) - the optional Snow Deformation depth source
+
+From Community Shaders - Snow Deformation by josefplyr1, GPL-3.0-or-later,
+https://github.com/josefplyr1/skyrim-community-shaders-dynamic-snow-deformation (branch exp/spell-integration, commit
+f745bdae940aa6ea76b1e9fd291dd152a98c20fc, `src/Features/SnowDeformation/SnowDeformationAPI.h`, copied 2026-10-25),
+part of Community Shaders (https://github.com/community-shaders/skyrim-community-shaders, GPL-3.0). The header is the
+author's public C interface, published for other plugins to copy; it is included unchanged below a provenance comment.
+Deep Snow resolves `SnowDeformation_GetAPI` from `CommunityShaders.dll` at run time when it is installed; no Community
+Shaders code is linked or shipped. Its licence is the GNU General Public License version 3 or (at your option) any later
+version - the same licence as this mod, whose full text is `LICENSE`.
+
 ## Dynamic Terrain Deformation
 
 Not included. Deep Snow reads one number, `SnowRaiseHeight`, from DTD's own INI when it is installed, for the units its

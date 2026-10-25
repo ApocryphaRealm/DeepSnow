@@ -115,10 +115,42 @@ namespace UI
 			}
 		}
 
+		void RenderSource()
+		{
+			// uSource: 0 Auto, 1 Deep Snow's own model, 2 Snow Deformation (Depth.h).
+			int source = std::clamp(static_cast<int>(settings::depth::source.load()), 0, 2);
+			const char* labels[] = { TR("DS_SourceAuto", "Auto"), TR("DS_SourceModel", "Deep Snow's own model"), TR("DS_SourceSD", "Snow Deformation") };
+			if (ImGuiMCP::Combo(TR("DS_Source", "Depth source"), &source, labels, 3))
+			{
+				settings::depth::source = static_cast<std::uint32_t>(source);
+				settings::Touch();
+				logger::debug("[page] depth source -> {}", source);
+			}
+			Help(TR("DS_HelpSource", "Auto uses Snow Deformation when it is installed and on, otherwise Deep Snow's own model."));
+			const char* sd = depth::SnowDeformationActive() ? TR("DS_SDOn", "found, on")
+			               : depth::SnowDeformationFound()  ? TR("DS_SDOff", "found, switched off")
+			                                                : TR("DS_SDMissing", "not installed");
+			ImGuiMCP::TextDisabled("%s %s", TR("DS_SDStatus", "Snow Deformation:"), sd);
+			if (depth::SnowDeformationFound())
+			{
+				Slider(TR("DS_SDFull", "Full blanket in Snow Deformation"), settings::depth::sdFullDepthUnits, 5.0F, 100.0F, "%.0f",
+					TR("DS_HelpSDFull", "The depth, in game units, that counts as 100%. Its deepest snow is about 30 units, and more while it snows."));
+			}
+		}
+
 		void RenderModel()
 		{
 			ImGuiMCP::SeparatorText(TR("DS_ModelTitle", "How deep is the snow?"));
+			RenderSource();
 			const std::string units = std::format("{:.0f}", depth::FullDepthUnits());
+			if (depth::ActiveSource() == depth::Source::kSnowDeformation)
+			{
+				ImGuiMCP::TextWrapped("%s", TR("DS_ModelTextSD",
+					"Depth here is the real snow that Snow Deformation (Community Shaders) reports under your feet, already deepened by its snowfall. "
+					"100% is a full blanket. Roads, ice and the snow under a roof still count as none, and packed trails still make walking easier."));
+				ImGuiMCP::Text("%s %s", TR("DS_ModelUnits", "A full blanket, in game units:"), units.c_str());
+				return;
+			}
 			ImGuiMCP::TextWrapped("%s", TR("DS_ModelText",
 				"Depth here is Deep Snow's own model, not the snow you see - no mod can read Dynamic Terrain Deformation's real snow. "
 				"100% is a full, untouched blanket of snow. Snowy paths count as a trench, roads and rocks as no snow, and the snow under a roof as none. "
@@ -223,6 +255,10 @@ namespace UI
 			using namespace settings;
 			ImGuiMCP::SeparatorText(TR("DS_SnowfallTitle", "Snowfall"));
 			Switch(TR("DS_Deepens", "Snowfall deepens the snow"), snowfall::deepens, TR("DS_HelpDeepens", "While it snows the snow grows deeper, and settles back after."));
+			if (::depth::ActiveSource() == ::depth::Source::kSnowDeformation)
+			{
+				ImGuiMCP::TextDisabled("%s", TR("DS_SnowfallSD", "Snow Deformation's own snowfall is used while it is the depth source; this setting applies to Deep Snow's own model."));
+			}
 			if (snowfall::deepens)
 			{
 				Slider(TR("DS_PerHour", "Deeper per hour of snowfall"), snowfall::perHour, 0.0F, 100.0F, "%.0f %%", nullptr);
