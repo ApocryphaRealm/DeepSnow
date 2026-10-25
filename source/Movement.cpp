@@ -3,6 +3,7 @@
 #include "Movement.h"
 
 #include "Depth.h"
+#include "EditorIDs.h"
 #include "Effects.h"
 #include "Settings.h"
 #include "Trails.h"
@@ -113,8 +114,8 @@ namespace movement
 			{
 				if (a_isPlayer || s.band != r.band || s.road != r.road)
 				{
-					logger::debug("[tick] {:08X}{}: {} ({}) tex='{}' cover={:.2f} packing={:.2f} sheltered={} sd={:.1f}u depth={:.1f}% -> band {} -> {}{}{}", a_actor->GetFormID(),
-						a_isPlayer ? " (player)" : "", surface::Name(r.reading.kind), r.reading.why, r.reading.texture, r.reading.cover, r.packing, r.reading.sheltered,
+					logger::debug("[tick] {:08X}{}: {} ({}) tex='{}' ltex='{}' roadBy='{}' cover={:.2f} packing={:.2f} sheltered={} sd={:.1f}u depth={:.1f}% -> band {} -> {}{}{}", a_actor->GetFormID(),
+						a_isPlayer ? " (player)" : "", surface::Name(r.reading.kind), r.reading.why, r.reading.texture, r.reading.landEditorID, r.reading.roadBy, r.reading.cover, r.packing, r.reading.sheltered,
 						r.sdUnits, r.depth, r.groundBand, r.band, r.road ? " +road" : "", a_isPlayer && forced.load() >= 0 ? " (forced)" : "");
 				}
 				s.band = r.band;
@@ -141,7 +142,7 @@ namespace movement
 			const surface::Reading rd = surface::Read(a_player, true);
 			std::string item;
 			settings::List target = static_cast<settings::List>(std::clamp(list, 0, static_cast<int>(settings::List::kIce)));
-			if (!rd.model.empty() && (rd.kind == surface::Kind::kObject || rd.kind == surface::Kind::kIce))
+			if (rd.onMesh && !rd.model.empty())
 			{
 				if (target != settings::List::kIce)
 				{
@@ -380,13 +381,13 @@ namespace movement
 		}
 		const auto& r = s.reading;
 		return std::format(
-			"{{\"havePlayer\":{},\"enabled\":{},\"effectsReady\":{},\"surface\":\"{}\",\"why\":\"{}\",\"texture\":\"{}\",\"landTexture\":\"{:08X}\",\"model\":\"{}\",\"material\":{},\"cover\":{:.3f},"
+			"{{\"havePlayer\":{},\"enabled\":{},\"effectsReady\":{},\"surface\":\"{}\",\"why\":\"{}\",\"texture\":\"{}\",\"landTexture\":\"{:08X}\",\"landEditorId\":\"{}\",\"textureSetEditorId\":\"{}\",\"roadBy\":\"{}\",\"editorIdsKept\":{},\"model\":\"{}\",\"material\":{},\"cover\":{:.3f},"
 			"\"preferred\":{},\"navmeshRead\":{},\"sheltered\":{},\"roofDistance\":{:.1f},\"packing\":{:.3f},\"snowfall\":{:.3f},\"snowing\":{},"
 			"\"depthPercent\":{:.2f},\"depthSource\":\"{}\",\"depthSourceSetting\":{},\"sdFound\":{},\"sdActive\":{},\"sdUnits\":{:.2f},\"sdFullDepthUnits\":{:.1f},"
 			"\"fullDepthUnits\":{:.1f},\"fullDepthSource\":\"{}\",\"depthUnits\":{:.2f},\"groundBand\":{},\"band\":{},\"forcedBand\":{},\"road\":{},"
 			"\"moving\":{},\"speedMult\":{:.2f},\"stamina\":{:.2f},\"drainedLastSecond\":{:.3f},\"ticks\":{},\"tickUsAvg\":{:.1f},\"tickUsMax\":{:.1f},"
 			"\"npcsNear\":{},\"npcsClassified\":{},\"npcsAffected\":{},\"affectNPCs\":{},\"trailSquares\":{},\"bands\":[{}]}}",
-			B(s.havePlayer), B(s.enabled), B(s.effectsReady), surface::Name(r.kind), Esc(r.why ? r.why : ""), Esc(r.texture), r.landTexture, Esc(r.model), r.material, r.cover, B(r.preferred),
+			B(s.havePlayer), B(s.enabled), B(s.effectsReady), surface::Name(r.kind), Esc(r.why ? r.why : ""), Esc(r.texture), r.landTexture, Esc(r.landEditorID), Esc(r.textureSetEditorID), Esc(r.roadBy), editor_ids::Count(), Esc(r.model), r.material, r.cover, B(r.preferred),
 			B(r.navmeshRead), B(r.sheltered), r.roofDistance, s.packing, s.snowfall, B(s.snowing), s.depthPercent, depth::SourceName(static_cast<depth::Source>(s.depthSource)), settings::depth::source.load(),
 			B(depth::SnowDeformationFound()), B(depth::SnowDeformationActive()), s.sdUnits, settings::depth::sdFullDepthUnits.load(), depth::FullDepthUnits(), depth::FullDepthSource(),
 			s.depthPercent / 100.0F * depth::FullDepthUnits(), s.groundBand, s.band, s.forcedBand, B(s.road), B(s.moving), s.speedMult, s.stamina, s.drainedLastSecond,

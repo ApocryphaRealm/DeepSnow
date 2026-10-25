@@ -2,6 +2,7 @@
 
 #include "Probe.h"
 
+#include "EditorIDs.h"
 #include "Settings.h"
 #include "utils/Logger.h"
 
@@ -94,7 +95,7 @@ namespace probe
 			if (const RE::BGSTextureSet* ts = a_lt->textureSet)
 			{
 				diffuse = Str(ts->textures[0].textureName.c_str());
-				tsEdid = Str(ts->GetFormEditorID());
+				tsEdid = editor_ids::Get(ts);
 			}
 			std::uint32_t matId = 0;
 			std::string matName;
@@ -103,7 +104,7 @@ namespace probe
 				matId = static_cast<std::uint32_t>(mt->materialID);
 				matName = Str(mt->materialName.c_str());
 			}
-			const std::string edid = Str(a_lt->GetFormEditorID());
+			const std::string edid = editor_ids::Get(a_lt);
 			const std::string plugin = PluginOf(a_lt);
 			TexInfo t;
 			t.text = std::format("{:08X}[{}]{}{} tex='{}' mat={}", a_lt->GetFormID(), plugin, edid.empty() ? "" : " ", edid, diffuse, matName.empty() ? std::format("0x{:08X}", matId) : matName);

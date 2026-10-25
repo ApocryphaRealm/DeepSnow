@@ -8,6 +8,7 @@
 
 #include "Depth.h"
 #include "DevBenchTool.h"
+#include "EditorIDs.h"
 #include "Effects.h"
 #include "Movement.h"
 #include "Probe.h"
@@ -36,6 +37,7 @@ namespace
 			break;
 		case SKSE::MessagingInterface::kDataLoaded:
 			strings::Configure("DeepSnow");
+			logger::info("[editorIDs] {} landscape / texture set / road static editor IDs kept for the road rule", editor_ids::Count());
 			DevBenchTool::Init(true);
 			depth::ReadDTD();
 			depth::ResolveSnowDeformation("kDataLoaded");  // rule 17: a second try, logged once
@@ -74,6 +76,8 @@ SKSEPluginLoad(const SKSE::LoadInterface* a_skse)
 	logger::info("Deep Snow {} loading", SKSE::PluginDeclaration::GetSingleton()->GetVersion().string("."));
 
 	serialization::Install();
+	// Before the data loads: the road rule reads landscape, texture set and static editor IDs the game would drop.
+	editor_ids::Install();
 
 	const SKSE::MessagingInterface* messaging = SKSE::GetMessagingInterface();
 	if (!messaging || !messaging->RegisterListener(MessageHandler))

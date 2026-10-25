@@ -11,25 +11,21 @@
 // ICE comes first and matches Ice is Slick's own test (IceIsSlickTable.h): the character controller's support
 // collision material (MaterialIce / MaterialIceForm), then its frozen-water meshes, then the ice texture names.
 //
-// Which surface a texture is lives in six lists in the INI ([Surfaces] sSnow / sTrail / sRoad / sIce / sIceMeshes /
-// sIceMaterials),
-// so the table is changed without a rebuild - from the page's "mark the ground under me" buttons or by hand.
+// ROADS (1.1.0, the owner 2026-10-25): any name with "road" in it is a road - the landscape texture's editor ID, its
+// texture set's editor ID, its diffuse or normal path; for a mesh under the feet its path, its base object's editor ID
+// or a diffuse its mesh draws (SurfaceRules.h holds the rule; EditorIDs.h keeps the editor IDs the game drops).
+//
+// Which surface a texture is otherwise lives in six lists in the INI ([Surfaces] sSnow / sTrail / sRoad / sIce /
+// sIceMeshes / sIceMaterials; sRoad is now only for roads whose names never say "road"), so the table is changed
+// without a rebuild - from the page's "mark the ground under me" buttons or by hand.
+
+#include "SurfaceRules.h"
 
 #include <cstdint>
 #include <string>
 
 namespace surface
 {
-	enum class Kind : std::uint8_t
-	{
-		kNone = 0,    // not classified: interior, mounted, swimming, no 3D, the mod off
-		kSnow,        // SNOW row - deep snow
-		kTrail,       // TRAIL row - a snowy path, already packed
-		kRoad,        // ROAD row - a road (texture list, or the navmesh preferred flag)
-		kIce,         // ICE row - not ours: Ice is Slick owns ice; no slow, no drain
-		kObject,      // standing on a mesh that is not ice
-		kOther,       // landscape no list names
-	};
 	const char* Name(Kind a_kind);  // "snow", "trail", ... (English: tools and logs read it, rule 66's exception)
 
 	struct Reading
@@ -38,7 +34,11 @@ namespace surface
 		const char* why = "not read";   // the branch that decided (a static string)
 		std::string texture;            // the engine pick's diffuse stem ("snow01"), empty if none
 		std::uint32_t landTexture = 0;  // that pick's LTEX form id (two LTEXes can share a diffuse: vanilla snow cobble draws SnowRocks01)
+		std::string landEditorID;       // that LTEX's editor ID ("COTN_LRoadStone01"), empty when unknown
+		std::string textureSetEditorID; // its texture set's editor ID ("COTN_LandscapeRoadStone01")
+		std::string roadBy;             // the name that made it a road (or "sRoad" / "navmesh"), empty when not a road
 		std::string model;              // the mesh under the feet when standing on one
+		bool onMesh = false;            // the mesh decided the reading (object, ice mesh or road mesh)
 		float cover = 1.0F;             // snow cover under the feet from the blend layers, 0..1
 		bool preferred = false;         // navmesh preferred-path flag (player only)
 		bool navmeshRead = false;
@@ -50,7 +50,8 @@ namespace surface
 	// Reads the ground under a_actor. a_wantNavmesh: the triangle walk is the expensive part, so only the player asks.
 	Reading Read(RE::Actor* a_actor, bool a_wantNavmesh);
 
-	// The surface table on its own (for DevBench and the page): which list a texture stem falls in.
+	// The surface table on its own (for DevBench and the page): which surface a texture stem is, by the lists and the
+	// road rule applied to the stem itself.
 	Kind ClassifyTexture(const std::string& a_stem);
 	bool IsIceMesh(const std::string& a_model);
 	bool IsIceMaterial(std::uint32_t a_material);

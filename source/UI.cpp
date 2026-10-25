@@ -205,6 +205,8 @@ namespace UI
 			Switch(TR("DS_AffectNPCs", "Also slow other people and creatures"), general::affectNPCs,
 				TR("DS_HelpAffectNPCs", "Off: only you are slowed. Their footsteps still pack trails either way."));
 			ImGuiMCP::TextWrapped("%s", TR("DS_RoadsSafe", "Roads are never slowed and never cost stamina, whatever the snow."));
+			ImGuiMCP::TextWrapped("%s", TR("DS_RoadsByName",
+				"A road is any ground or object whose texture or name contains \"road\", so road mods need no patch. The Road list under Surfaces is only for a road named otherwise."));
 			Switch(TR("DS_RoadBonus", "Faster travel on roads"), roads::bonus, TR("DS_HelpRoadBonus", "Optional. Off by default."));
 			if (roads::bonus) { Slider(TR("DS_RoadSpeed", "Speed on roads"), roads::speed, 100.0F, 150.0F, "%.0f %%", TR("DS_HelpRoadSpeed", "100% is normal speed.")); }
 		}

@@ -20,8 +20,11 @@ log and INI are `DeepSnow`.
   absolute SpeedMult write - so it adds to whatever other mods do to movement speed.
 - **Packed trails.** Every footstep - the player's, an NPC's or a creature's - packs the snow of a 128-unit square, and
   packed snow fills back in over game hours. Trails are kept in the SKSE co-save.
-- **Roads are exempt.** The navmesh's preferred-path flag, a road texture, or ground marked as road: no band and no
-  stamina cost there.
+- **Roads are exempt, by name.** Any ground or object with "road" in its name is a road - the landscape texture's
+  editor ID, its texture set's editor ID, the diffuse or normal path, or for a mesh its path, editor ID or textures - so
+  road mods (Northern Roads and anything that repoints its roads) need no patch. Deep Snow keeps the editor IDs the game
+  drops itself, so this works without powerofthree's Tweaks. Also roads: the navmesh's preferred-path flag, the optional
+  sRoad list, or ground marked as road. No band and no stamina cost there.
 - **Ice is left to Ice is Slick.** The ice row uses Ice is Slick's own ice list (collision materials, frozen-water meshes
   and ice textures), so the two mods never act on the same ground.
 - **A settings page** in the Apocrypha Menu Framework or SKSE Menu Framework: status under your feet, the depth-band

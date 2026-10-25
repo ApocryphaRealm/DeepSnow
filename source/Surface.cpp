@@ -2,6 +2,7 @@
 
 #include "Surface.h"
 
+#include "EditorIDs.h"
 #include "Settings.h"
 #include "utils/Logger.h"
 
@@ -9,6 +10,7 @@
 #include <array>
 #include <cctype>
 #include <cmath>
+#include <unordered_map>
 #include <vector>
 
 // Game thread only: every function here reads game objects (TES, the cell's LAND and navmesh, havok).
@@ -25,21 +27,6 @@ namespace surface
 		{
 			for (char& c : a_s) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
 			return a_s;
-		}
-
-		// '*' matches any run of characters; everything else literally (both sides already lower case).
-		bool Glob(const char* p, const char* s)
-		{
-			if (*p == '\0') { return *s == '\0'; }
-			if (*p == '*')
-			{
-				for (const char* t = s;; ++t)
-				{
-					if (Glob(p + 1, t)) { return true; }
-					if (*t == '\0') { return false; }
-				}
-			}
-			return *s != '\0' && *p == *s && Glob(p + 1, s + 1);
 		}
 
 		// The lists, copied out of settings once per change (ListsGeneration), so a tick never takes the settings lock
@@ -71,19 +58,58 @@ namespace surface
 			return t;
 		}
 
-		bool InList(const std::vector<std::string>& a_list, const std::string& a_stem)
+		using rules::InList;
+
+		rules::Lists ListsOf(const Table& a_t)
 		{
-			for (const auto& p : a_list)
-			{
-				if (Glob(p.c_str(), a_stem.c_str())) { return true; }
-			}
-			return false;
+			return { a_t.lists[static_cast<std::size_t>(settings::List::kIce)], a_t.lists[static_cast<std::size_t>(settings::List::kRoad)],
+				a_t.lists[static_cast<std::size_t>(settings::List::kTrail)], a_t.lists[static_cast<std::size_t>(settings::List::kSnow)] };
 		}
 
 		std::string StemOf(const RE::TESLandTexture* a_lt)
 		{
 			if (!a_lt || !a_lt->textureSet) { return {}; }
 			return Stem(a_lt->textureSet->textures[0].textureName.c_str());
+		}
+
+		const char* PathOf(const RE::BGSTextureSet* a_ts, int a_slot)
+		{
+			const char* p = a_ts ? a_ts->textures[a_slot].textureName.c_str() : nullptr;
+			return p ? p : "";
+		}
+
+		// The diffuse paths an object's loaded mesh draws say "road"? Asked once per mesh path (the answer is the same for
+		// every placed copy of it) and remembered. The scene graph walk stops at the first road texture.
+		bool MeshDrawsRoad(RE::TESObjectREFR* a_ref, const std::string& a_model, std::string& a_by)
+		{
+			static std::unordered_map<std::string, std::string> known;  // model (lower case) -> the road texture, or ""
+			if (a_model.empty()) { return false; }  // nothing to remember the answer by
+			std::string full = a_model;
+			for (char& c : full) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
+			if (const auto it = known.find(full); it != known.end())
+			{
+				a_by = it->second;
+				return !a_by.empty();
+			}
+			RE::NiAVObject* root = a_ref ? a_ref->Get3D() : nullptr;
+			if (!root) { return false; }  // not loaded yet: ask again next time rather than remembering a miss (rule 17)
+			std::string found;
+			RE::BSVisit::TraverseScenegraphGeometries(root, [&](RE::BSGeometry* a_geom) -> RE::BSVisit::BSVisitControl {
+				RE::BSLightingShaderProperty* lsp = a_geom ? a_geom->lightingShaderProp_cast() : nullptr;
+				auto* mat = lsp ? static_cast<RE::BSLightingShaderMaterialBase*>(lsp->material) : nullptr;
+				RE::BSTextureSet* ts = mat ? mat->textureSet.get() : nullptr;
+				const char* diffuse = ts ? ts->GetTexturePath(RE::BSTextureSet::Texture::kDiffuse) : nullptr;
+				if (diffuse && rules::HasRoad(diffuse))
+				{
+					found = diffuse;
+					return RE::BSVisit::BSVisitControl::kStop;
+				}
+				return RE::BSVisit::BSVisitControl::kContinue;
+			});
+			known.emplace(full, found);
+			logger::debug("[surface] mesh '{}' textures: {}", a_model, found.empty() ? std::string("no road texture") : "road texture '" + found + "'");
+			a_by = found;
+			return !found.empty();
 		}
 
 		// Snow cover at the nearest LAND vertex: the base texture under the blend layers, each layer laid over the last
@@ -220,14 +246,9 @@ namespace surface
 
 	Kind ClassifyTexture(const std::string& a_stem)
 	{
-		const Table& t = CurrentTable();
 		// ICE first: Ice is Slick owns ice, and a texture in two lists must never be slowed as snow (frozenmarshice01 is
-		// in DTD's snow list; it is ICE here on purpose).
-		if (InList(t.lists[static_cast<std::size_t>(settings::List::kIce)], a_stem)) { return Kind::kIce; }
-		if (InList(t.lists[static_cast<std::size_t>(settings::List::kRoad)], a_stem)) { return Kind::kRoad; }
-		if (InList(t.lists[static_cast<std::size_t>(settings::List::kTrail)], a_stem)) { return Kind::kTrail; }
-		if (InList(t.lists[static_cast<std::size_t>(settings::List::kSnow)], a_stem)) { return Kind::kSnow; }
-		return Kind::kOther;
+		// in DTD's snow list; it is ICE here on purpose). Then the road rule on the stem, the lists (SurfaceRules.h).
+		return rules::ClassifyLand(a_stem, {}, ListsOf(CurrentTable()));
 	}
 
 	bool IsIceMaterial(std::uint32_t a_material)
@@ -291,8 +312,17 @@ namespace surface
 			{
 				if (const auto* m = base->As<RE::TESModel>(); m && m->GetModel()) { r.model = m->GetModel(); }
 			}
-			if (!r.model.empty() && IsIceMesh(r.model)) { r.kind = Kind::kIce; r.why = "ice mesh"; return r; }
-			if (down.ref != a_actor && down.distance < 96.0F) { r.kind = Kind::kObject; r.why = "on a mesh"; return r; }
+			if (!r.model.empty() && IsIceMesh(r.model)) { r.kind = Kind::kIce; r.why = "ice mesh"; r.onMesh = true; return r; }
+			if (down.ref != a_actor && down.distance < 96.0F)
+			{
+				// The road rule on the object: its mesh path, its base object's editor ID, then the textures its mesh draws.
+				r.onMesh = true;
+				const std::string baseEdid = editor_ids::Get(base);
+				r.kind = rules::ClassifyObject({ r.model, baseEdid }, &r.roadBy);
+				if (r.kind != Kind::kRoad && MeshDrawsRoad(down.ref, r.model, r.roadBy)) { r.kind = Kind::kRoad; }
+				r.why = r.kind == Kind::kRoad ? "road mesh" : "on a mesh";
+				return r;
+			}
 		}
 
 		// Land: the engine's own pick (what footsteps use).
@@ -307,8 +337,20 @@ namespace surface
 		const RE::TESLandTexture* lt = tes->GetLandTexture(pos);
 		r.landTexture = lt ? lt->GetFormID() : 0;
 		r.texture = StemOf(lt);
-		r.kind = r.texture.empty() ? Kind::kOther : ClassifyTexture(r.texture);
-		r.why = r.texture.empty() ? "default land texture" : "land texture";
+		if (lt)
+		{
+			// The road rule on the ground: the LTEX's editor ID, its texture set's editor ID, the diffuse and normal paths.
+			const RE::BGSTextureSet* ts = lt->textureSet;
+			r.landEditorID = editor_ids::Get(lt);
+			r.textureSetEditorID = editor_ids::Get(ts);
+			r.kind = rules::ClassifyLand(r.texture, { r.landEditorID, r.textureSetEditorID, PathOf(ts, 0), PathOf(ts, 1) }, ListsOf(t), &r.roadBy);
+			r.why = r.kind == Kind::kRoad ? (r.roadBy == "sRoad" ? "road texture list" : "road in the name") : "land texture";
+		}
+		else
+		{
+			r.kind = Kind::kOther;
+			r.why = "default land texture";
+		}
 		if (r.kind == Kind::kIce) { return r; }
 
 		const float cover = Cover(cell, pos, t);
@@ -319,7 +361,12 @@ namespace surface
 			bool found = false;
 			r.preferred = Preferred(cell, pos, found);
 			r.navmeshRead = found;
-			if (r.preferred) { r.kind = Kind::kRoad; r.why = "navmesh preferred path"; }
+			if (r.preferred && r.kind != Kind::kRoad)
+			{
+				r.kind = Kind::kRoad;
+				r.why = "navmesh preferred path";
+				r.roadBy = "navmesh";
+			}
 		}
 		return r;
 	}
