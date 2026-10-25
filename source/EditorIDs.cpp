@@ -20,7 +20,8 @@ namespace editor_ids
 			if (!a_form || !a_str || *a_str == '\0') { return; }
 			const RE::FormID id = a_form->GetFormID();
 			if (id == 0 || id >= 0xFF000000) { return; }  // not loaded from a plugin
-			if (a_onlyRoads && !surface::rules::HasRoad(a_str)) { return; }
+			// "path" names are kept too, for [Roads] bPathsAreRoads (a setting that can change while the game runs).
+			if (a_onlyRoads && !surface::rules::HasRoad(a_str) && !surface::rules::HasPath(a_str)) { return; }
 			std::lock_guard g(lock);
 			names[id] = a_str;  // a later plugin's override renames it
 		}

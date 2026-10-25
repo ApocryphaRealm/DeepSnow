@@ -24,7 +24,9 @@ log and INI are `DeepSnow`.
   editor ID, its texture set's editor ID, the diffuse or normal path, or for a mesh its path, editor ID or textures - so
   road mods (Northern Roads and anything that repoints its roads) need no patch. Deep Snow keeps the editor IDs the game
   drops itself, so this works without powerofthree's Tweaks. Also roads: the navmesh's preferred-path flag, the optional
-  sRoad list, or ground marked as road. No band and no stamina cost there.
+  sRoad list, or ground marked as road. No band and no stamina cost there. An optional switch ([Roads] bPathsAreRoads,
+  off by default) makes "path" in a name count as "road" too, for road mods that name their roads "path" (Northern
+  Roads' winter roads use vanilla's snowy path texture).
 - **Ice is left to Ice is Slick.** The ice row uses Ice is Slick's own ice list (collision materials, frozen-water meshes
   and ice textures), so the two mods never act on the same ground.
 - **A settings page** in the Apocrypha Menu Framework or SKSE Menu Framework: status under your feet, the depth-band

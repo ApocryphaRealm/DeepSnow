@@ -16,7 +16,8 @@ HOW IT WORKS
     is a magic effect (an ability from DeepSnow.esp) added while you stand in the band and removed when you leave, so it
     adds to whatever Inertia, Dynamic Sprint, Survival Mode or any other mod does to your speed.
   - Roads are never slowed and never cost stamina, whatever the snow. A road is any ground or object with "road" in
-    its texture or name, so road mods need no patch.
+    its texture or name, so road mods need no patch. Some road mods name their roads "path" (Northern Roads' winter
+    roads use a snowy path texture): switch on "Paths and footpaths count as roads" if their roads still slow you.
   - Ice is left to Ice is Slick: no slowdown and no stamina cost on the ground it treats as ice (its ice list, taken
     from Ice is Slick 1.0.3.2).
   - Optional: faster travel on roads, snowfall that deepens the snow, NPCs slowed too (all off by default).

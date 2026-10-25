@@ -73,6 +73,7 @@ namespace settings
 		inline std::atomic<bool> bonus = false;     // bBonus:Roads - faster on roads (optional, off by default)
 		inline std::atomic<float> speed = 110.0F;   // fSpeed:Roads - speed on a road with the bonus on, % of normal
 		inline std::atomic<bool> useNavmesh = true; // bUseNavmesh:Roads - the navmesh "preferred path" flag marks a road (player only)
+		inline std::atomic<bool> pathsAreRoads = false; // bPathsAreRoads:Roads - "path" in a name counts as "road" (SurfaceRules.h)
 	}
 
 	namespace trails

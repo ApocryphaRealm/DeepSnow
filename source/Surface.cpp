@@ -78,22 +78,25 @@ namespace surface
 			return p ? p : "";
 		}
 
-		// The diffuse paths an object's loaded mesh draws say "road"? Asked once per mesh path (the answer is the same for
-		// every placed copy of it) and remembered. The scene graph walk stops at the first road texture.
-		bool MeshDrawsRoad(RE::TESObjectREFR* a_ref, const std::string& a_model, std::string& a_by)
+		// The diffuse paths an object's loaded mesh draws say "road" (or "path", with a_pathsAreRoads - [Roads]
+		// bPathsAreRoads)? Asked once per mesh path (the answer is the same for every placed copy of it) and remembered -
+		// both the first road texture and the first path texture, so the setting can change without asking again. The
+		// scene graph walk stops at the first road texture.
+		bool MeshDrawsRoad(RE::TESObjectREFR* a_ref, const std::string& a_model, std::string& a_by, bool a_pathsAreRoads)
 		{
-			static std::unordered_map<std::string, std::string> known;  // model (lower case) -> the road texture, or ""
+			struct Found { std::string road, path; };
+			static std::unordered_map<std::string, Found> known;  // model (lower case) -> its road / path texture, or ""
 			if (a_model.empty()) { return false; }  // nothing to remember the answer by
 			std::string full = a_model;
 			for (char& c : full) { c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); }
-			if (const auto it = known.find(full); it != known.end())
-			{
-				a_by = it->second;
+			const auto pick = [&](const Found& f) {
+				a_by = !f.road.empty() ? f.road : (a_pathsAreRoads ? f.path : std::string());
 				return !a_by.empty();
-			}
+			};
+			if (const auto it = known.find(full); it != known.end()) { return pick(it->second); }
 			RE::NiAVObject* root = a_ref ? a_ref->Get3D() : nullptr;
 			if (!root) { return false; }  // not loaded yet: ask again next time rather than remembering a miss (rule 17)
-			std::string found;
+			Found found;
 			RE::BSVisit::TraverseScenegraphGeometries(root, [&](RE::BSGeometry* a_geom) -> RE::BSVisit::BSVisitControl {
 				RE::BSLightingShaderProperty* lsp = a_geom ? a_geom->lightingShaderProp_cast() : nullptr;
 				auto* mat = lsp ? static_cast<RE::BSLightingShaderMaterialBase*>(lsp->material) : nullptr;
@@ -101,15 +104,15 @@ namespace surface
 				const char* diffuse = ts ? ts->GetTexturePath(RE::BSTextureSet::Texture::kDiffuse) : nullptr;
 				if (diffuse && rules::HasRoad(diffuse))
 				{
-					found = diffuse;
+					found.road = diffuse;
 					return RE::BSVisit::BSVisitControl::kStop;
 				}
+				if (diffuse && found.path.empty() && rules::HasPath(diffuse)) { found.path = diffuse; }
 				return RE::BSVisit::BSVisitControl::kContinue;
 			});
 			known.emplace(full, found);
-			logger::debug("[surface] mesh '{}' textures: {}", a_model, found.empty() ? std::string("no road texture") : "road texture '" + found + "'");
-			a_by = found;
-			return !found.empty();
+			logger::debug("[surface] mesh '{}' textures: road '{}', path '{}'", a_model, found.road, found.path);
+			return pick(found);
 		}
 
 		// Snow cover at the nearest LAND vertex: the base texture under the blend layers, each layer laid over the last
@@ -248,7 +251,7 @@ namespace surface
 	{
 		// ICE first: Ice is Slick owns ice, and a texture in two lists must never be slowed as snow (frozenmarshice01 is
 		// in DTD's snow list; it is ICE here on purpose). Then the road rule on the stem, the lists (SurfaceRules.h).
-		return rules::ClassifyLand(a_stem, {}, ListsOf(CurrentTable()));
+		return rules::ClassifyLand(a_stem, {}, ListsOf(CurrentTable()), nullptr, settings::roads::pathsAreRoads.load());
 	}
 
 	bool IsIceMaterial(std::uint32_t a_material)
@@ -318,8 +321,9 @@ namespace surface
 				// The road rule on the object: its mesh path, its base object's editor ID, then the textures its mesh draws.
 				r.onMesh = true;
 				const std::string baseEdid = editor_ids::Get(base);
-				r.kind = rules::ClassifyObject({ r.model, baseEdid }, &r.roadBy);
-				if (r.kind != Kind::kRoad && MeshDrawsRoad(down.ref, r.model, r.roadBy)) { r.kind = Kind::kRoad; }
+				const bool paths = settings::roads::pathsAreRoads.load();  // [Roads] bPathsAreRoads: "path" counts as "road"
+				r.kind = rules::ClassifyObject({ r.model, baseEdid }, &r.roadBy, paths);
+				if (r.kind != Kind::kRoad && MeshDrawsRoad(down.ref, r.model, r.roadBy, paths)) { r.kind = Kind::kRoad; }
 				r.why = r.kind == Kind::kRoad ? "road mesh" : "on a mesh";
 				return r;
 			}
@@ -343,7 +347,8 @@ namespace surface
 			const RE::BGSTextureSet* ts = lt->textureSet;
 			r.landEditorID = editor_ids::Get(lt);
 			r.textureSetEditorID = editor_ids::Get(ts);
-			r.kind = rules::ClassifyLand(r.texture, { r.landEditorID, r.textureSetEditorID, PathOf(ts, 0), PathOf(ts, 1) }, ListsOf(t), &r.roadBy);
+			r.kind = rules::ClassifyLand(r.texture, { r.landEditorID, r.textureSetEditorID, PathOf(ts, 0), PathOf(ts, 1) }, ListsOf(t), &r.roadBy,
+				settings::roads::pathsAreRoads.load());
 			r.why = r.kind == Kind::kRoad ? (r.roadBy == "sRoad" ? "road texture list" : "road in the name") : "land texture";
 		}
 		else

@@ -209,6 +209,10 @@ namespace UI
 				"A road is any ground or object whose texture or name contains \"road\", so road mods need no patch. The Road list under Surfaces is only for a road named otherwise."));
 			Switch(TR("DS_RoadBonus", "Faster travel on roads"), roads::bonus, TR("DS_HelpRoadBonus", "Optional. Off by default."));
 			if (roads::bonus) { Slider(TR("DS_RoadSpeed", "Speed on roads"), roads::speed, 100.0F, 150.0F, "%.0f %%", TR("DS_HelpRoadSpeed", "100% is normal speed.")); }
+			// [Roads] bPathsAreRoads (1.1.0, the owner 2026-10-25): "path" in a name counts as "road" (SurfaceRules.h).
+			Switch(TR("DS_PathsAreRoads", "Paths and footpaths count as roads"), roads::pathsAreRoads, TR("DS_HelpRoadBonus", "Optional. Off by default."));
+			ImGuiMCP::TextWrapped("%s", TR("DS_HelpPathsAreRoads",
+				"Some road mods name their roads 'path' (for example Northern Roads' winter roads use a snowy path texture). Turn this on if roads from your road mod still slow you."));
 		}
 
 		void RenderBands()

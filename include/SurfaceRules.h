@@ -11,6 +11,11 @@
 // a load order's names were checked and no snow ground carries them. sRoad stays as an optional extra list for a road
 // whose names never say "road".
 //
+// PATHS AS ROADS (optional, [Roads] bPathsAreRoads, off by default; the owner, 2026-10-25): some road mods name their
+// roads "path" - Northern Roads' Seasons winter swaps its dirt roads to vanilla LDirtSnowPath01, which says "path" and
+// sits on the trail list. With the setting on, a name containing "path" (so "footpath" too) in any letter case counts
+// exactly as "road" does, in the same names, and wins over the trail and snow lists. Ice still comes first.
+//
 // The order (unchanged from 1.0.0 except the name test): ICE first (Ice is Slick owns ice, whatever else a name says),
 // then ROAD (the name rule, then the sRoad list), then TRAIL, then SNOW, else OTHER.
 
@@ -36,10 +41,9 @@ namespace surface
 
 	namespace rules
 	{
-		// True when a_name contains "road" in any letter case.
-		inline bool HasRoad(std::string_view a_name)
+		// True when a_name contains a_word (lower case) in any letter case.
+		inline bool HasWord(std::string_view a_name, std::string_view word)
 		{
-			constexpr std::string_view word = "road";
 			if (a_name.size() < word.size()) { return false; }
 			for (std::size_t i = 0; i + word.size() <= a_name.size(); ++i)
 			{
@@ -50,12 +54,29 @@ namespace surface
 			return false;
 		}
 
-		// The first of a_names that says "road", or an empty view when none does (the reading reports which name decided).
-		inline std::string_view RoadName(std::initializer_list<std::string_view> a_names)
+		// True when a_name contains "road" in any letter case.
+		inline bool HasRoad(std::string_view a_name) { return HasWord(a_name, "road"); }
+
+		// True when a_name contains "path" in any letter case ("footpath" included).
+		inline bool HasPath(std::string_view a_name) { return HasWord(a_name, "path"); }
+
+		// The name test of the road rule: "road", or "path" too when a_pathsAreRoads ([Roads] bPathsAreRoads).
+		inline bool IsRoadName(std::string_view a_name, bool a_pathsAreRoads) { return HasRoad(a_name) || (a_pathsAreRoads && HasPath(a_name)); }
+
+		// The first of a_names that passes the name test, or an empty view when none does (the reading reports which name
+		// decided). A name saying "road" is preferred over one saying only "path".
+		inline std::string_view RoadName(std::initializer_list<std::string_view> a_names, bool a_pathsAreRoads = false)
 		{
 			for (const std::string_view n : a_names)
 			{
 				if (HasRoad(n)) { return n; }
+			}
+			if (a_pathsAreRoads)
+			{
+				for (const std::string_view n : a_names)
+				{
+					if (HasPath(n)) { return n; }
+				}
 			}
 			return {};
 		}
@@ -95,18 +116,21 @@ namespace surface
 
 		// Landscape: a_stem is the diffuse file's lower-case stem (what the lists hold); a_names are every name the
 		// road rule reads (LTEX editor ID, TXST editor ID, diffuse path, normal path - an empty one is skipped).
-		// a_roadBy (optional) receives the name that made it a road, or "sRoad" for a list match.
-		inline Kind ClassifyLand(const std::string& a_stem, std::initializer_list<std::string_view> a_names, const Lists& a_lists, std::string* a_roadBy = nullptr)
+		// a_roadBy (optional) receives the name that made it a road, or "sRoad" for a list match. a_pathsAreRoads:
+		// [Roads] bPathsAreRoads - "path" in a name counts as "road".
+		inline Kind ClassifyLand(const std::string& a_stem, std::initializer_list<std::string_view> a_names, const Lists& a_lists, std::string* a_roadBy = nullptr,
+			bool a_pathsAreRoads = false)
 		{
 			if (InList(a_lists.ice, a_stem)) { return Kind::kIce; }
-			if (const std::string_view by = RoadName(a_names); !by.empty())
+			if (const std::string_view by = RoadName(a_names, a_pathsAreRoads); !by.empty())
 			{
 				if (a_roadBy) { *a_roadBy = by; }
 				return Kind::kRoad;
 			}
-			if (HasRoad(a_stem) || InList(a_lists.road, a_stem))
+			const bool stemSays = IsRoadName(a_stem, a_pathsAreRoads);
+			if (stemSays || InList(a_lists.road, a_stem))
 			{
-				if (a_roadBy) { *a_roadBy = HasRoad(a_stem) ? a_stem : std::string("sRoad"); }
+				if (a_roadBy) { *a_roadBy = stemSays ? a_stem : std::string("sRoad"); }
 				return Kind::kRoad;
 			}
 			if (InList(a_lists.trail, a_stem)) { return Kind::kTrail; }
@@ -116,9 +140,10 @@ namespace surface
 
 		// An object under the feet that is not ice: a road when its mesh path, its base object's editor ID or any
 		// diffuse path its mesh draws says "road" (vanilla's road meshes: landscape\roads\road3way01.nif and family).
-		inline Kind ClassifyObject(std::initializer_list<std::string_view> a_names, std::string* a_roadBy = nullptr)
+		// With a_pathsAreRoads ([Roads] bPathsAreRoads) a name saying "path" counts too.
+		inline Kind ClassifyObject(std::initializer_list<std::string_view> a_names, std::string* a_roadBy = nullptr, bool a_pathsAreRoads = false)
 		{
-			if (const std::string_view by = RoadName(a_names); !by.empty())
+			if (const std::string_view by = RoadName(a_names, a_pathsAreRoads); !by.empty())
 			{
 				if (a_roadBy) { *a_roadBy = by; }
 				return Kind::kRoad;

@@ -136,6 +136,34 @@ int main(int argc, char** argv)
 	by.clear();
 	Check("sRoad entry grounddirt01 with no names", surface::rules::ClassifyLand("grounddirt01", { "", "", "", "" }, lists, &by), Kind::kRoad, by);
 
+	// 8b. [Roads] bPathsAreRoads (off by default; the owner, 2026-10-25): Northern Roads' Seasons winter INI swaps its dirt
+	//     roads to vanilla LDirtSnowPath01 - no "road" in any name, on the trail list. Off: trail / other as before.
+	//     On: "path" counts as "road" in the same names. Ice still wins.
+	Check("paths off: LDirtSnowPath01 / DirtSnowPath01.dds", surface::rules::ClassifyLand("dirtsnowpath01", { "LDirtSnowPath01", "LandscapeDirtSnowPath01", "PBR\\Landscape\\DirtSnowPath01.dds", "" }, lists, nullptr, false),
+		Kind::kTrail);
+	Check("paths off: LDirtPath01 / DirtPath01.dds", surface::rules::ClassifyLand("dirtpath01", { "LDirtPath01", "LandscapeDirtPath01", "PBR\\Landscape\\DirtPath01.dds", "PBR\\Landscape\\DirtPath01_N.dds" }, lists, nullptr, false),
+		Kind::kOther);
+	by.clear();
+	Check("paths on: LDirtSnowPath01 / DirtSnowPath01.dds", surface::rules::ClassifyLand("dirtsnowpath01", { "LDirtSnowPath01", "LandscapeDirtSnowPath01", "PBR\\Landscape\\DirtSnowPath01.dds", "" }, lists, &by, true),
+		Kind::kRoad, by);
+	by.clear();
+	Check("paths on: LDirtPath01 / DirtPath01.dds", surface::rules::ClassifyLand("dirtpath01", { "LDirtPath01", "LandscapeDirtPath01", "PBR\\Landscape\\DirtPath01.dds", "PBR\\Landscape\\DirtPath01_N.dds" }, lists, &by, true),
+		Kind::kRoad, by);
+	by.clear();
+	Check("paths on: diffuse path only (no editor IDs)", surface::rules::ClassifyLand("dirtsnowpath01", { "", "", "PBR\\Landscape\\DirtSnowPath01.dds", "" }, lists, &by, true), Kind::kRoad, by);
+	by.clear();
+	Check("paths on: stem only (ClassifyTexture)", surface::rules::ClassifyLand("dirtsnowpath01", {}, lists, &by, true), Kind::kRoad, by);
+	Check("paths on: upper case FOOTPATH", surface::rules::ClassifyLand("x", { "MYFOOTPATHTEX", "", "", "" }, lists, nullptr, true), Kind::kRoad);
+	Check("paths on: ice list texture with \"path\" in its set's name", surface::rules::ClassifyLand("frozenmarshice01", { "LFrozenMarshIce01", "IcePathSet", "Landscape\\FrozenMarshIce01.dds", "" }, lists, nullptr, true),
+		Kind::kIce);
+	Check("paths on: snow stays snow", surface::rules::ClassifyLand("snow01", { "LSnow01", "LandscapeSnow01", "PBR\\Landscape\\Snow01.dds", "PBR\\Landscape\\Snow01_n.dds" }, lists, nullptr, true), Kind::kSnow);
+	Check("paths on: \"pat h\" / \"pth\" are not path", surface::rules::ClassifyLand("x", { "LPth01", "pat h", "", "" }, lists, nullptr, true), Kind::kOther);
+	Check("paths off: mesh Landscape\\Paths\\FootPath01.nif", surface::rules::ClassifyObject({ "Landscape\\Paths\\FootPath01.nif", "FootPath01" }, nullptr, false), Kind::kObject);
+	by.clear();
+	Check("paths on: mesh Landscape\\Paths\\FootPath01.nif", surface::rules::ClassifyObject({ "Landscape\\Paths\\FootPath01.nif", "FootPath01" }, &by, true), Kind::kRoad, by);
+	by.clear();
+	Check("paths on: \"road\" preferred over \"path\" as the deciding name", surface::rules::ClassifyLand("x", { "LDirtPath01", "LRoad01", "", "" }, lists, &by, true), Kind::kRoad, by);
+
 	// 9. Optional: every landscape texture of a load order.
 	if (argc > 2)
 	{

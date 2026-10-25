@@ -148,6 +148,7 @@ namespace settings
 				k.push_back(B("Roads", "bBonus", roads::bonus));
 				k.push_back(F("Roads", "fSpeed", roads::speed));
 				k.push_back(B("Roads", "bUseNavmesh", roads::useNavmesh));
+				k.push_back(B("Roads", "bPathsAreRoads", roads::pathsAreRoads));
 				k.push_back(B("Trails", "bEnabled", trails::enabled));
 				k.push_back(F("Trails", "fPackPerPass", trails::packPerPass));
 				k.push_back(F("Trails", "fPackedRemain", trails::packedRemain));
@@ -464,6 +465,7 @@ namespace settings
 		roads::bonus = false;
 		roads::speed = 110.0F;
 		roads::useNavmesh = true;
+		roads::pathsAreRoads = false;
 		trails::enabled = true;
 		trails::packPerPass = 0.2F;
 		trails::packedRemain = 0.25F;

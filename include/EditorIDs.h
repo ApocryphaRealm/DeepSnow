@@ -7,7 +7,8 @@
 // groundstone01.dds - so Deep Snow keeps its own copy: it wraps SetFormEditorID (TESForm virtual 0x33) on the landscape
 // texture (LTEX), texture set (TXST) and static (STAT) vtables before the data loads, storing the name and calling the
 // original (so powerofthree's Tweaks, which wraps the same function, still sees every call). LTEX and TXST names are
-// kept whole (about a thousand forms, the probe prints them); for statics only a name with "road" in it is kept.
+// kept whole (about a thousand forms, the probe prints them); for statics only a name with "road" (or "path", for
+// [Roads] bPathsAreRoads) in it is kept.
 
 namespace editor_ids
 {
