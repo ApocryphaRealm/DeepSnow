@@ -87,10 +87,45 @@ namespace AddressLibraryGuard
 		return r;
 	}
 
+#ifndef RUNTIME_LINE
+#	define RUNTIME_LINE 1
+#endif
+
+	// 2026-11-07: which games THIS build can run on. Two DLLs come from one source: line 1 (CommonLibSSE-NG 3.7) for
+	// SE 1.5.97 and AE 1.6.x, line 17 (CommonLibSSE-NG 7.2.0) for Skyrim 1.7.x. Line 1's CommonLib calls a 1.7 game
+	// "SE" and looks for version-1-7-104-0.bin, which Address Library for 1.7 does not ship - so without this check a
+	// 1.7 player with the SE/AE DLL is told his Address Library is missing when it is fine.
+	inline bool BuildSupportsRuntime(const REL::Version& a_ver)
+	{
+		return RUNTIME_LINE == 17 ? a_ver[1] >= 6 : a_ver[1] < 7;
+	}
+
+	// Shows the "wrong build for this game" message and returns false when this build cannot run on the game.
+	inline bool CheckBuildLine(const char* a_modName)
+	{
+		const auto ver = REL::Module::get().version();
+		if (BuildSupportsRuntime(ver)) {
+			return true;
+		}
+		const bool game17 = ver[1] >= 7;
+		const std::string text = std::format(
+			"{} cannot start: this build does not support Skyrim {}. Your Address Library is fine.\n\n"
+			"This is the {} build. Run the {} installer again and choose \"{}\".\n\n"
+			"The plugin has loaded inert; the game continues.",
+			a_modName, ver.string("."),
+			RUNTIME_LINE == 17 ? "Skyrim 1.7.x" : "SE 1.5.97 / AE 1.6.x", a_modName,
+			game17 ? "Skyrim 1.7.99 / 1.7.104 (current Steam version)" : "Skyrim SE 1.5.97 or AE 1.6.1170");
+		MessageBoxA(nullptr, text.c_str(), a_modName, MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
+		return false;
+	}
+
 	// Logs the report; when the file CommonLib will open is missing, shows a message naming it and
 	// returns false so the caller can load inert. Never resolves an address itself.
 	inline bool Guard(const char* a_modName)
 	{
+		if (!CheckBuildLine(a_modName)) {
+			return false;
+		}
 		const Report r = Check();
 		logger::info("[AddressLibrary] runtime {} ({}) read from \"{}\"; will open \"{}\" relative to \"{}\": {}{}{}",
 			r.runtime, r.edition, r.exe, r.file, r.cwd, r.existsAtCwd ? "present" : "MISSING", r.simulated ? " (SIMULATED by environment variable)" : "",

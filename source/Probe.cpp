@@ -267,9 +267,19 @@ namespace probe
 			pick.rayInput.from = RE::hkVector4(a_from.x * s, a_from.y * s, a_from.z * s, 0.0F);
 			pick.rayInput.to = RE::hkVector4(a_to.x * s, a_to.y * s, a_to.z * s, 0.0F);
 			std::uint32_t filter = 0;
+#if RUNTIME_LINE == 17
+			RE::CFilter cfilter;   // CommonLibSSE-NG 7.2 hands the filter back as a CFilter
+			a_player->GetCollisionFilterInfo(cfilter);
+			filter = cfilter.filter;
+#else
 			a_player->GetCollisionFilterInfo(filter);
+#endif
 			// The player's own collision group (the high 16 bits) so the ray ignores the player's capsule; the LOS layer.
+#if RUNTIME_LINE == 17
+			pick.rayInput.filterInfo.filter = (filter & 0xFFFF0000u) | static_cast<std::uint32_t>(RE::COL_LAYER::kLOS);
+#else
 			pick.rayInput.filterInfo = (filter & 0xFFFF0000u) | static_cast<std::uint32_t>(RE::COL_LAYER::kLOS);
+#endif
 			world->PickObject(pick);
 			r.ran = true;
 

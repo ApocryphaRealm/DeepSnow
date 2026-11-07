@@ -211,9 +211,19 @@ namespace surface
 			pick.rayInput.from = RE::hkVector4(a_from.x * s, a_from.y * s, a_from.z * s, 0.0F);
 			pick.rayInput.to = RE::hkVector4(a_to.x * s, a_to.y * s, a_to.z * s, 0.0F);
 			std::uint32_t filter = 0;
+#if RUNTIME_LINE == 17
+			RE::CFilter cfilter;   // CommonLibSSE-NG 7.2 hands the filter back as a CFilter
+			a_actor->GetCollisionFilterInfo(cfilter);
+			filter = cfilter.filter;
+#else
 			a_actor->GetCollisionFilterInfo(filter);
+#endif
 			// The actor's own collision group (high 16 bits) so the ray ignores its capsule; the LOS layer (as the probe).
+#if RUNTIME_LINE == 17
+			pick.rayInput.filterInfo.filter = (filter & 0xFFFF0000u) | static_cast<std::uint32_t>(RE::COL_LAYER::kLOS);
+#else
 			pick.rayInput.filterInfo = (filter & 0xFFFF0000u) | static_cast<std::uint32_t>(RE::COL_LAYER::kLOS);
+#endif
 			world->PickObject(pick);
 			if (!pick.rayOutput.HasHit()) { return r; }
 			r.hit = true;

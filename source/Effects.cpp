@@ -57,8 +57,13 @@ namespace effects
 			if (!settings::general::refreshSpeed) { return; }
 			RE::ActorValueOwner* avo = a_actor->AsActorValueOwner();
 			if (!avo) { return; }
+#if RUNTIME_LINE == 17
+			avo->ModBaseActorValue(RE::ActorValue::kCarryWeight, 0.01F);   // 7.2's name for the two-argument ModActorValue
+			avo->ModBaseActorValue(RE::ActorValue::kCarryWeight, -0.01F);
+#else
 			avo->ModActorValue(RE::ActorValue::kCarryWeight, 0.01F);
 			avo->ModActorValue(RE::ActorValue::kCarryWeight, -0.01F);
+#endif
 		}
 
 		bool Holds(RE::Actor* a_actor)
@@ -173,7 +178,11 @@ namespace effects
 		const float floor = max * settings::stamina::floor.load() / 100.0F;
 		const float take = std::min(perSecond * a_seconds, now - floor);
 		if (take <= 0.0F) { return 0.0F; }
+#if RUNTIME_LINE == 17
+		avo->DamageActorValue(RE::ActorValue::kStamina, take);   // 7.2: Damage/Restore take a positive amount
+#else
 		avo->RestoreActorValue(RE::ACTOR_VALUE_MODIFIER::kDamage, RE::ActorValue::kStamina, -take);
+#endif
 		return take;
 	}
 
