@@ -169,6 +169,8 @@ namespace effects
 	float Drain(RE::Actor* a_actor, int a_band, float a_seconds)
 	{
 		if (!a_actor || a_band < 1 || a_band > settings::kBandCount || !settings::stamina::drain || a_seconds <= 0.0F) { return 0.0F; }
+		// tgm: the console's god mode spends no stamina, so the snow takes none either (the owner, 2026-11-08)
+		if (a_actor->IsPlayerRef() && RE::PlayerCharacter::IsGodMode()) { return 0.0F; }
 		RE::ActorValueOwner* avo = a_actor->AsActorValueOwner();
 		if (!avo) { return 0.0F; }
 		const float perSecond = settings::bands[a_band - 1].drain.load();

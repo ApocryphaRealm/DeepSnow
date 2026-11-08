@@ -8,6 +8,11 @@ Written as changes happen, not reconstructed afterwards (rule 61). Each version 
 * **failed** - built but crashed or malfunctioned; the number was reclaimed
 * **scratch** - a hypothesis-test build that never held a real number
 
+## 1.2.1 - 2026-11-08 - untested
+
+### Fixed
+- God mode (tgm) now stops the snow's stamina drain, as it stops every other stamina cost.
+
 ## 1.2.0 - 2026-11-07 - untested
 
 ### Added
