@@ -45,7 +45,7 @@ namespace surface
 		bool sheltered = false;         // a roof within fShelterHeight
 		float roofDistance = -1.0F;
 		std::uint32_t material = 0;     // the character controller's support collision material (0 = none read)
-		std::uint32_t landMaterial = 0; // the picked landscape texture's material type ID (MATERIAL_ID; kSnow = 398949039), 0 = none
+		std::uint32_t landMaterial = 0; // the picked landscape texture's material as the engine reports it, seasonal swap included (MATERIAL_ID; kSnow = 398949039), 0 = none
 		bool snowMaterial = false;      // SNOW because of that material ([Surfaces] bSnowMaterial), not a list
 	};
 
