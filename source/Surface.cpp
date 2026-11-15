@@ -80,7 +80,24 @@ namespace surface
 		{
 			if (!a_lt) { return 0u; }
 			using func_t = RE::MATERIAL_ID (*)(const RE::TESLandTexture*);
+			// Resolved on first use (game thread, after load), never at static init. 18849 is in Address Library v13 for
+			// 1.6.1170, 1.7.99 and 1.7.104, and on 1.7.104 it is the same 14-byte function as 18418 on 1.5.97 (disassembled
+			// 2026-11-15), so both build lines use this pair.
 			static REL::Relocation<func_t> func{ RELOCATION_ID(18418, 18849) };
+			static const bool resolved = [] {
+				const auto addr = func.address();
+				if (addr) {
+					logger::debug("[surface] GetHavokMaterialType resolved at {:X}", addr);
+				} else {
+					logger::warn("[surface] GetHavokMaterialType did not resolve; the record's material is read instead (no seasonal swap)");
+				}
+				return addr != 0;
+			}();
+			if (!resolved) {
+				// Safe fallback: the record's MNAM is what the vanilla function returns without Seasons of Skyrim.
+				const RE::BGSMaterialType* mt = a_lt->materialType;
+				return mt ? static_cast<std::uint32_t>(mt->materialID) : 0u;
+			}
 			return static_cast<std::uint32_t>(func(a_lt));
 		}
 

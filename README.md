@@ -25,9 +25,10 @@ log and INI are `DeepSnow`.
 - **People and creatures, separately (off by default).** `[General] bAffectPeople` slows other people (races with the
   ActorTypeNPC keyword) and `bAffectCreatures` slows animals and monsters. An older INI with only `bAffectNPCs` keeps
   behaving the same: both take its value.
-- **Seasons-aware snow.** A landscape texture whose material is snow - what seasons mods set on their winter ground so
-  the footsteps match - counts as snow when no list names it (`[Surfaces] bSnowMaterial`, on by default). The ice,
-  road, trail and snow lists still decide first.
+- **Seasons-aware snow.** A landscape texture whose material is snow counts as snow when no list names it
+  (`[Surfaces] bSnowMaterial`, on by default). The material is the one the engine reports for the texture - the same
+  answer the footsteps use - so Seasons of Skyrim's winter swap counts, though it leaves the summer record in place.
+  The ice, road, trail and snow lists still decide first.
 - **Packed trails.** Every footstep - the player's, an NPC's or a creature's - packs the snow of a 128-unit square, and
   packed snow fills back in over game hours. Trails are kept in the SKSE co-save.
 - **Roads are exempt, by name.** Any ground or object with "road" in its name is a road - the landscape texture's
@@ -74,8 +75,9 @@ with their notices: `THIRD_PARTY_NOTICES.md`.
   header the settings page draws through.
 - DevBench for the testing API.
 - Dynamic Terrain Deformation: Deep Snow only reads its `SnowRaiseHeight` for the units shown. None of its code is used.
-- nesslowland for the seasons-aware snow detection: idea and approach by nesslowland (reading the landscape texture's
-  snow material as the last test before "other", and per layer in the cover blend).
+- nesslowland for the seasons-aware snow detection: idea and approach by nesslowland (the landscape texture's snow
+  material as the last test before "other", and per layer in the cover blend), and the engine-material lookup that makes
+  Seasons of Skyrim's winter count (GitHub pull request #1).
 - jobenal for the requests behind the stamina regen penalty and the separate people / creature switches.
 - josefplyr1 for Snow Deformation (Community Shaders) and its public API, whose header (`include/SnowDeformationAPI.h`,
   GPL-3.0-or-later) Deep Snow uses to read the snow depth.
