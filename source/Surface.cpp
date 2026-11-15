@@ -72,11 +72,16 @@ namespace surface
 			return Stem(a_lt->textureSet->textures[0].textureName.c_str());
 		}
 
-		// The landscape texture's material type (MNAM) - BGSMaterialType can be absent, so null-checked.
+		// The landscape texture's material, asked of the engine (the call behind TES::GetLandMaterialType and the
+		// footsteps) rather than read from a_lt->materialType: Seasons of Skyrim replaces this function to answer with the
+		// seasonal swap's material and leaves the record's MNAM as it was, so in winter the record still says grass where
+		// the engine says snow. Without Seasons it returns the record's MNAM (0 when there is none).
 		std::uint32_t MaterialOf(const RE::TESLandTexture* a_lt)
 		{
-			const RE::BGSMaterialType* mt = a_lt ? a_lt->materialType : nullptr;
-			return mt ? static_cast<std::uint32_t>(mt->materialID) : 0u;
+			if (!a_lt) { return 0u; }
+			using func_t = RE::MATERIAL_ID (*)(const RE::TESLandTexture*);
+			static REL::Relocation<func_t> func{ RELOCATION_ID(18418, 18849) };
+			return static_cast<std::uint32_t>(func(a_lt));
 		}
 
 		// [Surfaces] bSnowMaterial on and a_lt's material is snow (1.3.0, idea and approach by nesslowland).

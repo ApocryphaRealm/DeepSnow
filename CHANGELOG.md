@@ -8,6 +8,11 @@ Written as changes happen, not reconstructed afterwards (rule 61). Each version 
 * **failed** - built but crashed or malfunctioned; the number was reclaimed
 * **scratch** - a hypothesis-test build that never held a real number
 
+## Unreleased - untested
+
+### Fixed
+- Seasons-aware snow now sees Seasons of Skyrim's winter: the material is asked of the engine (the lookup behind TES::GetLandMaterialType and the footsteps) instead of read from the landscape texture's record. Seasons of Skyrim leaves the summer records in place and answers that engine lookup with its winter swap's material, so in 1.3.0 a winter field read as grass (record) while its footsteps said snow (engine). Without Seasons the engine returns the record's material, so nothing changes there.
+
 ## 1.3.0 - 2026-11-14 - untested
 
 ### Added
