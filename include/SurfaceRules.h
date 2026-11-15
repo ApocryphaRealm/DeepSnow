@@ -16,8 +16,13 @@
 // sits on the trail list. With the setting on, a name containing "path" (so "footpath" too) in any letter case counts
 // exactly as "road" does, in the same names, and wins over the trail and snow lists. Ice still comes first.
 //
+// SNOW MATERIAL (1.3.0, [Surfaces] bSnowMaterial, on by default; idea and approach by nesslowland): a landscape texture
+// whose material type is snow (MATERIAL_ID::kSnow, what seasonal swaps set so the footsteps match) counts as SNOW when
+// no list names it. It is the last test before OTHER, so ice, roads, trails and the snow list still decide first.
+// The caller reads the material (Surface.cpp) and passes a plain bool, so this header stays free of game types.
+//
 // The order (unchanged from 1.0.0 except the name test): ICE first (Ice is Slick owns ice, whatever else a name says),
-// then ROAD (the name rule, then the sRoad list), then TRAIL, then SNOW, else OTHER.
+// then ROAD (the name rule, then the sRoad list), then TRAIL, then SNOW, then the snow material, else OTHER.
 
 #include <cctype>
 #include <cstdint>
@@ -117,10 +122,12 @@ namespace surface
 		// Landscape: a_stem is the diffuse file's lower-case stem (what the lists hold); a_names are every name the
 		// road rule reads (LTEX editor ID, TXST editor ID, diffuse path, normal path - an empty one is skipped).
 		// a_roadBy (optional) receives the name that made it a road, or "sRoad" for a list match. a_pathsAreRoads:
-		// [Roads] bPathsAreRoads - "path" in a name counts as "road".
+		// [Roads] bPathsAreRoads - "path" in a name counts as "road". a_snowMaterial: the texture's material is snow and
+		// [Surfaces] bSnowMaterial is on - SNOW when nothing before it decided; a_byMaterial (optional) is set true then.
 		inline Kind ClassifyLand(const std::string& a_stem, std::initializer_list<std::string_view> a_names, const Lists& a_lists, std::string* a_roadBy = nullptr,
-			bool a_pathsAreRoads = false)
+			bool a_pathsAreRoads = false, bool a_snowMaterial = false, bool* a_byMaterial = nullptr)
 		{
+			if (a_byMaterial) { *a_byMaterial = false; }
 			if (InList(a_lists.ice, a_stem)) { return Kind::kIce; }
 			if (const std::string_view by = RoadName(a_names, a_pathsAreRoads); !by.empty())
 			{
@@ -135,7 +142,19 @@ namespace surface
 			}
 			if (InList(a_lists.trail, a_stem)) { return Kind::kTrail; }
 			if (InList(a_lists.snow, a_stem)) { return Kind::kSnow; }
+			if (a_snowMaterial)
+			{
+				if (a_byMaterial) { *a_byMaterial = true; }
+				return Kind::kSnow;
+			}
 			return Kind::kOther;
+		}
+
+		// One blend layer's snow score in the cover blend (Surface.cpp Cover): 1 when its stem is on the snow list, or when
+		// its material is snow (a_snowMaterial, already combined with [Surfaces] bSnowMaterial), else 0.
+		inline float LayerSnow(const std::vector<std::string>& a_snow, const std::string& a_stem, bool a_snowMaterial)
+		{
+			return InList(a_snow, a_stem) || a_snowMaterial ? 1.0F : 0.0F;
 		}
 
 		// An object under the feet that is not ice: a road when its mesh path, its base object's editor ID or any

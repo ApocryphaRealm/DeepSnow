@@ -18,6 +18,16 @@ log and INI are `DeepSnow`.
 - **Five depth bands.** Each has a starting depth, a movement speed and a stamina cost per second. The speed change is a
   SpeedMult ability from `DeepSnow.esp`, added while the actor stands in the band and removed when it leaves - never an
   absolute SpeedMult write - so it adds to whatever other mods do to movement speed.
+- **Stamina regen penalty (optional, off by default).** Per band, stamina can refill slower (`[Bands] fBandNRegen`, %
+  of normal; 100 = no change). It is a StaminaRateMult ability from `DeepSnow.esp`, separate from the stamina cost.
+  Other people and creatures get it only within `[NPCs] fRegenRadius` of you (default 4096 units), checked once a
+  second; you always do.
+- **People and creatures, separately (off by default).** `[General] bAffectPeople` slows other people (races with the
+  ActorTypeNPC keyword) and `bAffectCreatures` slows animals and monsters. An older INI with only `bAffectNPCs` keeps
+  behaving the same: both take its value.
+- **Seasons-aware snow.** A landscape texture whose material is snow - what seasons mods set on their winter ground so
+  the footsteps match - counts as snow when no list names it (`[Surfaces] bSnowMaterial`, on by default). The ice,
+  road, trail and snow lists still decide first.
 - **Packed trails.** Every footstep - the player's, an NPC's or a creature's - packs the snow of a 128-unit square, and
   packed snow fills back in over game hours. Trails are kept in the SKSE co-save.
 - **Roads are exempt, by name.** Any ground or object with "road" in its name is a road - the landscape texture's
@@ -64,5 +74,8 @@ with their notices: `THIRD_PARTY_NOTICES.md`.
   header the settings page draws through.
 - DevBench for the testing API.
 - Dynamic Terrain Deformation: Deep Snow only reads its `SnowRaiseHeight` for the units shown. None of its code is used.
+- nesslowland for the seasons-aware snow detection: idea and approach by nesslowland (reading the landscape texture's
+  snow material as the last test before "other", and per layer in the cover blend).
+- jobenal for the requests behind the stamina regen penalty and the separate people / creature switches.
 - josefplyr1 for Snow Deformation (Community Shaders) and its public API, whose header (`include/SnowDeformationAPI.h`,
   GPL-3.0-or-later) Deep Snow uses to read the snow depth.

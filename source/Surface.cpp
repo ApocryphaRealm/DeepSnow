@@ -72,6 +72,19 @@ namespace surface
 			return Stem(a_lt->textureSet->textures[0].textureName.c_str());
 		}
 
+		// The landscape texture's material type (MNAM) - BGSMaterialType can be absent, so null-checked.
+		std::uint32_t MaterialOf(const RE::TESLandTexture* a_lt)
+		{
+			const RE::BGSMaterialType* mt = a_lt ? a_lt->materialType : nullptr;
+			return mt ? static_cast<std::uint32_t>(mt->materialID) : 0u;
+		}
+
+		// [Surfaces] bSnowMaterial on and a_lt's material is snow (1.3.0, idea and approach by nesslowland).
+		bool SnowByMaterial(const RE::TESLandTexture* a_lt, bool a_use)
+		{
+			return a_use && a_lt && MaterialOf(a_lt) == static_cast<std::uint32_t>(RE::MATERIAL_ID::kSnow);
+		}
+
 		const char* PathOf(const RE::BGSTextureSet* a_ts, int a_slot)
 		{
 			const char* p = a_ts ? a_ts->textures[a_slot].textureName.c_str() : nullptr;
@@ -117,6 +130,7 @@ namespace surface
 
 		// Snow cover at the nearest LAND vertex: the base texture under the blend layers, each layer laid over the last
 		// with its alpha (0..255, read in test 78b3). 1 = all snow-list textures, 0 = none. -1 = the LAND is not readable.
+		// 1.3.0: a layer whose material is snow scores 1 too, with [Surfaces] bSnowMaterial on (SurfaceRules.h LayerSnow).
 		float Cover(RE::TESObjectCELL* a_cell, const RE::NiPoint3& a_pos, const Table& a_t)
 		{
 			if (!a_cell || a_cell->IsInteriorCell()) { return -1.0F; }
@@ -133,13 +147,15 @@ namespace surface
 			const int row = std::clamp(static_cast<int>(std::lround((ly - static_cast<float>(qy) * kQuadSize) / kVertexStep)), 0, 16);
 			const int vtx = row * 17 + col;
 			const auto& snow = a_t.lists[static_cast<std::size_t>(settings::List::kSnow)];
-			float c = InList(snow, StemOf(ld->defQuadTextures[quad])) ? 1.0F : 0.0F;
+			const bool useMaterial = settings::surfaces::snowMaterial.load();
+			const RE::TESLandTexture* base = ld->defQuadTextures[quad];  // can be null: the worldspace default
+			float c = rules::LayerSnow(snow, StemOf(base), SnowByMaterial(base, useMaterial));
 			for (int i = 0; i < 6; ++i)
 			{
 				const RE::TESLandTexture* lt = ld->quadTextures[quad][i];
 				if (!lt) { continue; }
 				const float a = static_cast<float>(static_cast<std::uint8_t>(ld->percents[quad][vtx][i])) / 255.0F;
-				const float s = InList(snow, StemOf(lt)) ? 1.0F : 0.0F;
+				const float s = rules::LayerSnow(snow, StemOf(lt), SnowByMaterial(lt, useMaterial));
 				c = c * (1.0F - a) + s * a;
 			}
 			return std::clamp(c, 0.0F, 1.0F);
@@ -357,9 +373,12 @@ namespace surface
 			const RE::BGSTextureSet* ts = lt->textureSet;
 			r.landEditorID = editor_ids::Get(lt);
 			r.textureSetEditorID = editor_ids::Get(ts);
+			r.landMaterial = MaterialOf(lt);
+			bool byMaterial = false;
 			r.kind = rules::ClassifyLand(r.texture, { r.landEditorID, r.textureSetEditorID, PathOf(ts, 0), PathOf(ts, 1) }, ListsOf(t), &r.roadBy,
-				settings::roads::pathsAreRoads.load());
-			r.why = r.kind == Kind::kRoad ? (r.roadBy == "sRoad" ? "road texture list" : "road in the name") : "land texture";
+				settings::roads::pathsAreRoads.load(), SnowByMaterial(lt, settings::surfaces::snowMaterial.load()), &byMaterial);
+			r.snowMaterial = byMaterial;
+			r.why = r.kind == Kind::kRoad ? (r.roadBy == "sRoad" ? "road texture list" : "road in the name") : byMaterial ? "snow material" : "land texture";
 		}
 		else
 		{

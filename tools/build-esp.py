@@ -16,6 +16,13 @@ Records (master Skyrim.esm only for convention; nothing of it is referenced). Lo
     0x802  MGEF  DeepSnow_FastEffect      Value Modifier, SpeedMult, beneficial, recover, constant, self
     0x803-0x807  SPEL  DeepSnow_Band1..5  abilities, one effect 0x801, magnitude 5/12/20/28/35 (100 - band speed %)
     0x808  SPEL  DeepSnow_RoadBonus       ability, one effect 0x802, magnitude 10
+    0x809  MGEF  DeepSnow_RegenEffect     (1.3.0) Value Modifier, StaminaRateMult, detrimental, recover, constant, self
+    0x80A-0x80E  SPEL  DeepSnow_Regen1..5 (1.3.0) abilities, one effect 0x809, magnitude 0 (100 - band regen %; the
+                                          default regen is 100 % = no change, and the DLL adds them only below 100 %)
+
+Why the regen penalty has abilities of its own instead of a second effect in 0x803-0x807: it reaches other people and
+creatures only within [NPCs] fRegenRadius of the player (the owner, 2026-11-14), while the speed ability reaches every
+affected actor within fScanRadius - one ability cannot be both. Existing FormIDs are unchanged; 1.3.0 only adds records.
 
 Everything is written from scratch with the field layouts xEdit documents for Skyrim SE (form version 44). The
 magnitudes here are the defaults only; the DLL writes the INI's values over them at data load.
@@ -33,8 +40,13 @@ BAND_SPELLS = [0x803, 0x804, 0x805, 0x806, 0x807]
 ROAD_SPELL = 0x808
 BAND_MAGNITUDES = [5.0, 12.0, 20.0, 28.0, 35.0]  # 100 - (95, 88, 80, 72, 65)
 ROAD_MAGNITUDE = 10.0                            # 110 % - 100
+MGEF_REGEN = 0x809
+REGEN_SPELLS = [0x80A, 0x80B, 0x80C, 0x80D, 0x80E]
+REGEN_MAGNITUDE = 0.0                            # 100 - 100 % (no change); the DLL writes the INI's value
+NEXT_OBJECT = 0x80F
 
 AV_SPEEDMULT = 30
+AV_STAMINARATEMULT = 157                         # RE::ActorValue::kStaminaRateMult (CommonLibSSE-NG ActorValues.h)
 NONE = 0xFFFFFFFF
 
 # MGEF flags (xEdit: Magic Effect DATA flags)
@@ -73,7 +85,7 @@ def grup(label, payload):
     return b'GRUP' + struct.pack('<I', len(payload) + 24) + label.encode('ascii') + struct.pack('<i', 0) + b'\x00' * 8 + payload
 
 
-def mgef_data(flags):
+def mgef_data(flags, av=AV_SPEEDMULT):
     d = b''
     d += struct.pack('<I', flags)          # flags
     d += struct.pack('<f', 0.0)            # base cost
@@ -92,7 +104,7 @@ def mgef_data(flags):
     d += struct.pack('<f', 0.0)            # taper duration
     d += struct.pack('<f', 0.0)            # second AV weight
     d += struct.pack('<I', 0)              # archetype 0 = Value Modifier
-    d += struct.pack('<I', AV_SPEEDMULT)   # actor value
+    d += struct.pack('<I', av)             # actor value
     d += struct.pack('<I', 0)              # projectile
     d += struct.pack('<I', 0)              # explosion
     d += struct.pack('<I', 0)              # casting type 0 = constant effect
@@ -117,10 +129,10 @@ def mgef_data(flags):
     return d
 
 
-def mgef(local, edid, name, desc, flags):
+def mgef(local, edid, name, desc, flags, av=AV_SPEEDMULT):
     body = (sub('EDID', z(edid)) + sub('FULL', z(name))
             + sub('KSIZ', struct.pack('<I', 1)) + sub('KWDA', struct.pack('<I', fid(KYWD)))
-            + sub('DATA', mgef_data(flags)) + sub('DNAM', z(desc)))
+            + sub('DATA', mgef_data(flags, av)) + sub('DNAM', z(desc)))
     return rec('MGEF', fid(local), body)
 
 
@@ -143,10 +155,15 @@ def build():
     spells = [spel(BAND_SPELLS[i], 'DeepSnow_Band%d' % (i + 1), 'Deep Snow', 'Deep snow slows you down.', MGEF_SLOW,
                    BAND_MAGNITUDES[i]) for i in range(5)]
     spells.append(spel(ROAD_SPELL, 'DeepSnow_RoadBonus', 'Road', 'The road is easy going.', MGEF_FAST, ROAD_MAGNITUDE))
+    regen = mgef(MGEF_REGEN, 'DeepSnow_RegenEffect', 'Deep Snow', 'Deep snow slows your stamina regeneration.',
+                 F_RECOVER | F_DETRIMENTAL | F_NO_DURATION | F_NO_AREA | F_PAINLESS, AV_STAMINARATEMULT)
+    spells += [spel(REGEN_SPELLS[i], 'DeepSnow_Regen%d' % (i + 1), 'Deep Snow', 'Deep snow slows your stamina regeneration.', MGEF_REGEN,
+                    REGEN_MAGNITUDE) for i in range(5)]
 
-    groups = [grup('KYWD', kywd), grup('MGEF', slow + fast), grup('SPEL', b''.join(spells))]
-    n_records = 1 + 2 + len(spells) + len(groups)  # records and groups, as xEdit counts them
-    hedr = struct.pack('<fiI', 1.71, n_records, 0x809)
+    effects = [slow, fast, regen]
+    groups = [grup('KYWD', kywd), grup('MGEF', b''.join(effects)), grup('SPEL', b''.join(spells))]
+    n_records = 1 + len(effects) + len(spells) + len(groups)  # records and groups, as xEdit counts them
+    hedr = struct.pack('<fiI', 1.71, n_records, NEXT_OBJECT)
     header_body = (sub('HEDR', hedr) + sub('CNAM', z('ApocryphaRealm'))
                    + sub('SNAM', z('Deep Snow - depth-band speed abilities (SpeedMult modifiers) for the Deep Snow SKSE plugin.'))
                    + sub('MAST', z('Skyrim.esm')) + sub('DATA', struct.pack('<Q', 0)))

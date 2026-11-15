@@ -164,7 +164,46 @@ int main(int argc, char** argv)
 	by.clear();
 	Check("paths on: \"road\" preferred over \"path\" as the deciding name", surface::rules::ClassifyLand("x", { "LDirtPath01", "LRoad01", "", "" }, lists, &by, true), Kind::kRoad, by);
 
-	// 9. Optional: every landscape texture of a load order.
+	// 9. Snow material (1.3.0, [Surfaces] bSnowMaterial; idea and approach by nesslowland): a texture whose material is
+	//    snow counts as SNOW only when nothing before it decided - ice, roads, trails and the snow list keep winning.
+	// Each case's kind is taken before its reason is printed (argument order is unspecified in C++).
+	const auto mat = [&](const char* a_what, const std::string& a_stem, std::initializer_list<std::string_view> a_names, bool a_material, Kind a_want, bool a_wantByMaterial) {
+		bool byMat = false;
+		const Kind k = surface::rules::ClassifyLand(a_stem, a_names, lists, nullptr, false, a_material, &byMat);
+		Check(a_what, k, a_want, byMat ? "snow material" : "");
+		if (byMat != a_wantByMaterial)
+		{
+			++failed;
+			std::printf("FAIL  %-72s reason %s, want %s\n", a_what, byMat ? "snow material" : "not the material", a_wantByMaterial ? "snow material" : "not the material");
+		}
+	};
+	mat("material: LWinterForestLeaves01 (Forgotten Vale), material snow, on", "winterforestleaves01",
+		{ "LWinterForestLeaves01", "LandscapeWinterForestLeaves01", "Landscape\\WinterForestLeaves01.dds", "" }, true, Kind::kSnow, true);
+	mat("material: LWinterForestLeaves01, switch off (bSnowMaterial=0)", "winterforestleaves01",
+		{ "LWinterForestLeaves01", "LandscapeWinterForestLeaves01", "Landscape\\WinterForestLeaves01.dds", "" }, false, Kind::kOther, false);
+	mat("material: seasonal dirt02 with material snow", "dirt02", { "LDirt02", "", "Landscape\\Dirt02.dds", "" }, true, Kind::kSnow, true);
+	mat("material: vanilla LSnow01 decided by the list, not the material", "snow01", { "LSnow01", "LandscapeSnow01", "PBR\\Landscape\\Snow01.dds", "" }, true,
+		Kind::kSnow, false);
+	mat("material: LDirtSnowPath01 with material snow stays TRAIL", "dirtsnowpath01",
+		{ "LDirtSnowPath01", "LandscapeDirtSnowPath01", "PBR\\Landscape\\DirtSnowPath01.dds", "" }, true, Kind::kTrail, false);
+	mat("material: a road with material snow stays ROAD", "road01snow01", { "", "TextureSetRoad01Snow01", "PBR\\Landscape\\Roads\\Road01Snow01.dds", "" }, true,
+		Kind::kRoad, false);
+	mat("material: an ice texture with material snow stays ICE", "frozenmarshice01", { "LFrozenMarshIce01", "", "Landscape\\FrozenMarshIce01.dds", "" }, true,
+		Kind::kIce, false);
+	mat("material: grass, material not snow, stays OTHER", "grass01", { "LGrass01", "", "Landscape\\Grass01.dds", "" }, false, Kind::kOther, false);
+	// The cover blend's layer score (Surface.cpp Cover).
+	const auto layer = [&](const char* a_what, const char* a_stem, bool a_mat, float a_want) {
+		const float got = surface::rules::LayerSnow(snow, a_stem, a_mat);
+		const bool ok = got == a_want;
+		(ok ? passed : failed)++;
+		std::printf("%s  %-72s -> %.0f (want %.0f)\n", ok ? "PASS" : "FAIL", a_what, got, a_want);
+	};
+	layer("cover layer: snow01 (list), material not snow", "snow01", false, 1.0F);
+	layer("cover layer: winterforestleaves01, material snow", "winterforestleaves01", true, 1.0F);
+	layer("cover layer: winterforestleaves01, switch off", "winterforestleaves01", false, 0.0F);
+	layer("cover layer: no texture (null base), switch on but no material", "", false, 0.0F);
+
+	// 10. Optional: every landscape texture of a load order.
 	if (argc > 2)
 	{
 		std::ifstream tsv(argv[2]);

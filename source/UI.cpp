@@ -195,6 +195,11 @@ namespace UI
 			if (s.road) { ImGuiMCP::Text("%s", TR("DS_StatusRoadBonus", "Road: faster travel is on.")); }
 			const std::string speed = std::format("{:.0f}", s.speedMult);
 			ImGuiMCP::Text("%s %s", TR("DS_StatusSpeed", "Movement speed (SpeedMult):"), speed.c_str());
+			if (s.regenBand > 0)
+			{
+				const std::string regen = std::format("{:.0f}%", s.staminaRateMult);
+				ImGuiMCP::Text("%s %s", TR("DS_StatusRegen", "Stamina regeneration (StaminaRateMult):"), regen.c_str());
+			}
 		}
 
 		void RenderGeneral()
@@ -202,8 +207,13 @@ namespace UI
 			using namespace settings;
 			ImGuiMCP::SeparatorText(TR("DS_GeneralTitle", "General"));
 			Switch(TR("DS_Enabled", "Deep snow slows you down"), general::enabled, TR("DS_HelpEnabled", "Off removes every Deep Snow effect at once."));
-			Switch(TR("DS_AffectNPCs", "Also slow other people and creatures"), general::affectNPCs,
-				TR("DS_HelpAffectNPCs", "Off: only you are slowed. Their footsteps still pack trails either way."));
+			// 1.3.0 (C1): bAffectNPCs split into people (ActorTypeNPC races) and creatures.
+			Switch(TR("DS_AffectPeople", "Also slow other people"), general::affectPeople,
+				TR("DS_HelpAffectPeople", "Other people (humans, elves, orcs, beast races) are slowed and pay the stamina cost as you do. Their footsteps pack trails either way."));
+			Switch(TR("DS_AffectCreatures", "Also slow creatures"), general::affectCreatures,
+				TR("DS_HelpAffectCreatures", "Animals and monsters (wolves, bears, trolls) are slowed and pay the stamina cost too. Their footsteps pack trails either way."));
+			Slider(TR("DS_RegenRadius", "Stamina regen penalty reaches others within"), npcs::regenRadius, 512.0F, 20000.0F, "%.0f",
+				TR("DS_HelpRegenRadius", "Game units (4096 is one exterior cell). Others farther from you keep their normal stamina regeneration. You always get it."));
 			ImGuiMCP::TextWrapped("%s", TR("DS_RoadsSafe", "Roads are never slowed and never cost stamina, whatever the snow."));
 			ImGuiMCP::TextWrapped("%s", TR("DS_RoadsByName",
 				"A road is any ground or object whose texture or name contains \"road\", so road mods need no patch. The Road list under Surfaces is only for a road named otherwise."));
@@ -222,12 +232,13 @@ namespace UI
 			ImGuiMCP::TextWrapped("%s", TR("DS_BandsText",
 				"Each band starts at a snow depth and sets your speed there and a small stamina cost while you move. The deepest band you reach applies."));
 			const ImGuiMCP::ImGuiTableFlags flags = ImGuiMCP::ImGuiTableFlags_SizingStretchProp;
-			if (ImGuiMCP::BeginTable("##ds_bands", 4, flags))
+			if (ImGuiMCP::BeginTable("##ds_bands", 5, flags))
 			{
 				ImGuiMCP::TableSetupColumn(TR("DS_ColBand", "Band"), 0, 0.4F);
 				ImGuiMCP::TableSetupColumn(TR("DS_ColDepth", "Starts at depth"), 0, 1.0F);
 				ImGuiMCP::TableSetupColumn(TR("DS_ColSpeed", "Speed"), 0, 1.0F);
 				ImGuiMCP::TableSetupColumn(TR("DS_ColDrain", "Stamina per second"), 0, 1.0F);
+				ImGuiMCP::TableSetupColumn(TR("DS_ColRegen", "Stamina regen"), 0, 1.0F);
 				ImGuiMCP::TableHeadersRow();
 				for (int i = 0; i < kBandCount; ++i)
 				{
@@ -243,9 +254,14 @@ namespace UI
 					ImGuiMCP::TableNextColumn();
 					ImGuiMCP::SetNextItemWidth(-1.0F);
 					Slider(std::format("##r{}", i).c_str(), bands[i].drain, 0.0F, 20.0F, "%.1f", nullptr);
+					ImGuiMCP::TableNextColumn();
+					ImGuiMCP::SetNextItemWidth(-1.0F);
+					Slider(std::format("##g{}", i).c_str(), bands[i].regen, 0.0F, 100.0F, "%.0f %%", nullptr);
 				}
 				ImGuiMCP::EndTable();
 			}
+			ImGuiMCP::TextWrapped("%s", TR("DS_HelpRegen",
+				"Stamina regen: how fast stamina refills in the band, as a share of normal. 100% (the default) changes nothing. Others get it only within the distance set under General."));
 			Switch(TR("DS_Drain", "Deep snow costs stamina"), stamina::drain, TR("DS_HelpDrain", "A small cost each second while you move in a band - the band's stamina value."));
 			Slider(TR("DS_Floor", "Never below"), stamina::floor, 0.0F, 100.0F, "%.0f %%", TR("DS_HelpFloor", "Deep snow never takes your stamina below this share of its maximum."));
 		}
@@ -302,6 +318,10 @@ namespace UI
 			ImGuiMCP::TextDisabled("%s %s", TR("DS_ListTrail", "Trail:"), lists[1].c_str());
 			ImGuiMCP::TextDisabled("%s %s", TR("DS_ListRoad", "Road:"), lists[2].c_str());
 			ImGuiMCP::TextDisabled("%s %s", TR("DS_ListIce", "Ice:"), lists[3].c_str());
+
+			// [Surfaces] bSnowMaterial (1.3.0, idea and approach by nesslowland).
+			Switch(TR("DS_SnowMaterial", "Ground made of snow counts as snow"), settings::surfaces::snowMaterial,
+				TR("DS_HelpSnowMaterial", "A ground texture whose material is snow (the footstep sound) counts as snow when no list names it. Seasons mods set it on their winter ground, so this follows the season."));
 
 			Slider(TR("DS_TrailDepth", "Depth of a snowy path"), settings::depth::trail, 0.0F, 1.0F, "%.2f", TR("DS_HelpTrailDepth", "A path texture's snow, as a share of a full blanket."));
 			Slider(TR("DS_OtherDepth", "Depth on other ground"), settings::depth::other, 0.0F, 1.0F, "%.2f",

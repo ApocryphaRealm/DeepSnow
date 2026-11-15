@@ -8,6 +8,20 @@ Written as changes happen, not reconstructed afterwards (rule 61). Each version 
 * **failed** - built but crashed or malfunctioned; the number was reclaimed
 * **scratch** - a hypothesis-test build that never held a real number
 
+## 1.3.0 - 2026-11-14 - untested
+
+### Added
+- tools\surface_rules_check.bat: 12 snow-material cases (Forgotten Vale texture on and off, a seasonal dirt02, LSnow01 still decided by the list, trail / road / ice still first, the cover layer score) - 45 cases in all.
+- deepsnow.state: the reading's landMaterial and snowMaterial (why: snow material), bSnowMaterial; a regen block (ready, the player's regen band and StaminaRateMult, radius and effective radius, the check interval and count, NPCs in the radius and holding the penalty, removals); people / creature counts of classified and affected NPCs; an actors list (up to 24 holders of any Deep Snow ability with type, band, regen band, distance, SpeedMult, StaminaRateMult); effects gains each regen ability's percent, magnitude and wanted flag.
+- Settings page: Also slow other people / Also slow creatures switches (replacing the one switch), the regen radius slider, a Stamina regen column in the band table with its note, a Stamina regeneration (StaminaRateMult) status line while the penalty applies, and the Ground made of snow counts as snow switch; every new string in all eleven languages (the two retired strings removed).
+- Seasons-aware snow (idea and approach by nesslowland): a landscape texture whose material type is snow (MATERIAL_ID kSnow, which seasonal swaps set so footsteps match) counts as SNOW when no list names it - after the ice, road, trail and snow-list checks, before OTHER - and each blend layer of the snow cover scores as snow the same way. Switch [Surfaces] bSnowMaterial, on by default. Vanilla Skyrim.esm snow fields are unchanged (their snow-material textures are already on the lists); textures such as Dawnguard's LWinterForestLeaves01 (Forgotten Vale) go from OTHER to snow.
+- People and creatures are switched separately (jobenal's request): [General] bAffectNPCs is replaced by bAffectPeople (races with the ActorTypeNPC keyword) and bAffectCreatures (every other race), both off by default. An INI that still has only bAffectNPCs gives its value to both, so an existing setup behaves the same; Save writes the two new keys and turns the old line into a comment. DevBench set key=bAffectNPCs still sets both.
+- The regen penalty reaches other people and creatures only within [NPCs] fRegenRadius of the player (default 4096 game units, one exterior cell; 512 to 20000), for performance. The player always gets it. NPCs are checked on the existing NPC cadence when they are classified, and every NPC holding the regen ability is checked once a second (a timer inside the tick, not per frame); one that is farther away, unloaded, in another worldspace or no longer affected loses it. Save/load clean-up (co-save APLD and the after-load reset) removes it as it removes the speed abilities.
+- Optional stamina REGEN penalty in deep snow (a Nexus request by jobenal): new per-band keys [Bands] fBand1Regen..fBand5Regen, stamina regeneration in that band as % of normal, 100 = no change (the default, so it is off and nothing changes for current setups). It is a StaminaRateMult Value Modifier in five new band abilities in DeepSnow.esp (MGEF 0x809 DeepSnow_RegenEffect, SPEL 0x80A-0x80E DeepSnow_Regen1..5); it stacks with Survival Mode and other mods like the speed effect does and comes off with the ability. The existing drain is unchanged and independent: bDrain=0 with regen below 100 gives a regen penalty only.
+
+### Changed
+- Built with link-time optimisation (IPO / LTCG) off, as the project now requires for every DLL.
+
 ## 1.2.1 - 2026-11-08 - working
 
 ### Fixed

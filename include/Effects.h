@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace effects
@@ -29,6 +30,14 @@ namespace effects
 	// Gives a_actor exactly the ability for a_band (0 = none) and, with a_road, the road ability; removes the rest.
 	// Returns true when anything was added or removed.
 	bool Set(RE::Actor* a_actor, int a_band, bool a_road);
+	// Stamina regen penalty (1.3.0, [Bands] fBandNRegen, 100 = no change): gives a_actor the regen ability for a_band
+	// when that band's regen is below 100 % (0 = none) and removes the others. Its own abilities (0x80A-0x80E, effect
+	// 0x809 on StaminaRateMult), apart from the speed ones, so movement.cpp can limit it to NPCs within fRegenRadius.
+	bool SetRegen(RE::Actor* a_actor, int a_band);
+	bool RegenWanted(int a_band);  // the band's regen is below 100 % and the forms were found
+	bool RegenReady();
+	// Actors holding a regen ability and its band (form id, band), for the radius check and deepsnow.state.
+	std::vector<std::pair<std::uint32_t, int>> RegenHolders();
 	// Removes and re-adds whatever a_actor holds of ours, so a changed magnitude takes hold.
 	void Reapply(RE::Actor* a_actor);
 	// Stamina damage for one tick; returns the points taken.

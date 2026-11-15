@@ -20,7 +20,12 @@ HOW IT WORKS
     roads use a snowy path texture): switch on "Paths and footpaths count as roads" if their roads still slow you.
   - Ice is left to Ice is Slick: no slowdown and no stamina cost on the ground it treats as ice (its ice list, taken
     from Ice is Slick 1.0.3.2).
-  - Optional: faster travel on roads, snowfall that deepens the snow, NPCs slowed too (all off by default).
+  - A landscape texture whose material is snow (what seasons mods set on their winter ground so the footsteps match)
+    counts as snow when no list names it, so the snow follows the season. Switch: "Ground made of snow counts as snow"
+    (on by default). Idea and approach by nesslowland.
+  - Optional: faster travel on roads, snowfall that deepens the snow, other people and creatures slowed too (two
+    switches), and a stamina regen penalty per band (100 % = no change; other people and creatures get it only within
+    a set distance of you) - all off by default.
 
 SETTINGS
   The Deep Snow page in the Apocrypha Menu Framework (or SKSE Menu Framework) - changes apply at once, Save keeps them.

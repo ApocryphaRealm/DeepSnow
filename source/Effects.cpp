@@ -11,7 +11,9 @@
 #include <cstring>
 #include <format>
 #include <mutex>
+#include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 namespace effects
 {
@@ -22,13 +24,20 @@ namespace effects
 		constexpr RE::FormID kFastEffect = 0x802;
 		constexpr RE::FormID kBandSpell[settings::kBandCount] = { 0x803, 0x804, 0x805, 0x806, 0x807 };
 		constexpr RE::FormID kRoadSpell = 0x808;
+		// 1.3.0: the stamina regen penalty - its own magic effect (Value Modifier on StaminaRateMult, detrimental) in its
+		// own band abilities, so it can reach an NPC only within [NPCs] fRegenRadius while the speed ability does not care.
+		constexpr RE::FormID kRegenEffect = 0x809;
+		constexpr RE::FormID kRegenSpell[settings::kBandCount] = { 0x80A, 0x80B, 0x80C, 0x80D, 0x80E };
 
 		std::array<RE::SpellItem*, settings::kBandCount> bandSpells{};
+		std::array<RE::SpellItem*, settings::kBandCount> regenSpells{};
 		RE::SpellItem* roadSpell = nullptr;
 		std::atomic<bool> ready{ false };
+		std::atomic<bool> regenReady{ false };
 
 		std::mutex appliedLock;
-		std::unordered_set<std::uint32_t> applied;  // guarded by appliedLock
+		std::unordered_set<std::uint32_t> applied;                  // guarded by appliedLock
+		std::unordered_map<std::uint32_t, int> regenHeld;           // actor -> the regen band it holds; guarded by appliedLock
 
 		RE::SpellItem* Find(RE::TESDataHandler* a_dh, RE::FormID a_id, const char* a_what)
 		{
@@ -69,7 +78,22 @@ namespace effects
 		bool Holds(RE::Actor* a_actor)
 		{
 			for (auto* s : bandSpells) { if (s && a_actor->HasSpell(s)) { return true; } }
+			for (auto* s : regenSpells) { if (s && a_actor->HasSpell(s)) { return true; } }
 			return roadSpell && a_actor->HasSpell(roadSpell);
+		}
+
+		// After a change: remember the actor while it holds anything of ours (co-save APLD, clean-up after a load).
+		void Track(RE::Actor* a_actor)
+		{
+			const bool holds = Holds(a_actor);
+			std::scoped_lock l(appliedLock);
+			if (holds) { applied.insert(a_actor->GetFormID()); }
+			else { applied.erase(a_actor->GetFormID()); }
+		}
+
+		float RegenMagnitude(int a_band)
+		{
+			return std::clamp(100.0F - settings::bands[a_band].regen.load(), 0.0F, 100.0F);
 		}
 	}
 
@@ -90,6 +114,26 @@ namespace effects
 		}
 		roadSpell = Find(dh, kRoadSpell, "road ability");
 		ok &= roadSpell != nullptr;
+		// The regen abilities are optional for the rest of the mechanism: an older DeepSnow.esp (before 1.3.0) lacks
+		// them, and then only the regen penalty is off.
+		bool regenOk = dh->LookupForm<RE::EffectSetting>(kRegenEffect, kPlugin) != nullptr;
+		for (int i = 0; i < settings::kBandCount; ++i)
+		{
+			regenSpells[i] = Find(dh, kRegenSpell[i], std::format("band {} regen ability", i + 1).c_str());
+			regenOk &= regenSpells[i] != nullptr;
+		}
+		if (const auto* regen = dh->LookupForm<RE::EffectSetting>(kRegenEffect, kPlugin))
+		{
+			logger::info("[effects] regen effect {:08X} (archetype {}, actor value {}; StaminaRateMult is {})", regen->GetFormID(), static_cast<int>(regen->data.archetype),
+				static_cast<int>(regen->data.primaryAV), static_cast<int>(RE::ActorValue::kStaminaRateMult));
+		}
+		if (!regenOk)
+		{
+			logger::warn("[effects] the stamina regen forms ({:03X}, {:03X}-{:03X}) are missing from {} - an older plugin? The regen penalty stays off; speed and drain work.",
+				kRegenEffect, kRegenSpell[0], kRegenSpell[settings::kBandCount - 1], kPlugin);
+			regenSpells.fill(nullptr);
+		}
+		regenReady = regenOk;
 		const auto* slow = dh->LookupForm<RE::EffectSetting>(kSlowEffect, kPlugin);
 		const auto* fast = dh->LookupForm<RE::EffectSetting>(kFastEffect, kPlugin);
 		if (slow && fast)
@@ -123,7 +167,54 @@ namespace effects
 		}
 		const float road = std::clamp(settings::roads::speed.load() - 100.0F, 0.0F, 50.0F);
 		SetMagnitude(roadSpell, road);
-		logger::debug("[effects] SpeedMult magnitudes:{} road=+{:.0f}", log, road);
+		std::string regenLog;
+		for (int i = 0; i < settings::kBandCount; ++i)
+		{
+			SetMagnitude(regenSpells[i], RegenMagnitude(i));
+			regenLog += std::format(" band{}=-{:.0f}", i + 1, RegenMagnitude(i));
+		}
+		logger::debug("[effects] SpeedMult magnitudes:{} road=+{:.0f}; StaminaRateMult magnitudes:{}{}", log, road, regenLog, regenReady ? "" : " (regen forms missing)");
+	}
+
+	bool RegenReady() { return regenReady.load(); }
+
+	bool RegenWanted(int a_band)
+	{
+		return regenReady && a_band >= 1 && a_band <= settings::kBandCount && settings::bands[a_band - 1].regen.load() < 99.95F;
+	}
+
+	bool SetRegen(RE::Actor* a_actor, int a_band)
+	{
+		if (!ready || !a_actor) { return false; }
+		const int want = RegenWanted(a_band) ? a_band : 0;
+		bool changed = false;
+		for (int i = 0; i < settings::kBandCount; ++i)
+		{
+			RE::SpellItem* s = regenSpells[i];
+			if (!s) { continue; }
+			const bool w = want == i + 1;
+			const bool has = a_actor->HasSpell(s);
+			if (w && !has) { a_actor->AddSpell(s); changed = true; }
+			else if (!w && has) { a_actor->RemoveSpell(s); changed = true; }
+		}
+		{
+			std::scoped_lock l(appliedLock);
+			if (want > 0) { regenHeld[a_actor->GetFormID()] = want; }
+			else { regenHeld.erase(a_actor->GetFormID()); }
+		}
+		if (changed)
+		{
+			Track(a_actor);
+			logger::debug("[effects] {:08X} '{}': stamina regen ability {}", a_actor->GetFormID(), a_actor->GetName(),
+				want > 0 ? std::format("band {} ({:.0f}% of normal regen)", want, settings::bands[want - 1].regen.load()) : std::string("removed"));
+		}
+		return changed;
+	}
+
+	std::vector<std::pair<std::uint32_t, int>> RegenHolders()
+	{
+		std::scoped_lock l(appliedLock);
+		return { regenHeld.begin(), regenHeld.end() };
 	}
 
 	bool Set(RE::Actor* a_actor, int a_band, bool a_road)
@@ -148,9 +239,7 @@ namespace effects
 		if (changed)
 		{
 			RefreshSpeed(a_actor);
-			std::scoped_lock l(appliedLock);
-			if (a_band > 0 || a_road) { applied.insert(a_actor->GetFormID()); }
-			else { applied.erase(a_actor->GetFormID()); }
+			Track(a_actor);
 		}
 		return changed;
 	}
@@ -163,6 +252,10 @@ namespace effects
 			if (bandSpells[i] && a_actor->HasSpell(bandSpells[i])) { a_actor->RemoveSpell(bandSpells[i]); a_actor->AddSpell(bandSpells[i]); }
 		}
 		if (roadSpell && a_actor->HasSpell(roadSpell)) { a_actor->RemoveSpell(roadSpell); a_actor->AddSpell(roadSpell); }
+		for (auto* s : regenSpells)
+		{
+			if (s && a_actor->HasSpell(s)) { a_actor->RemoveSpell(s); a_actor->AddSpell(s); }
+		}
 		RefreshSpeed(a_actor);
 	}
 
@@ -204,6 +297,7 @@ namespace effects
 	{
 		std::scoped_lock l(appliedLock);
 		applied.clear();
+		regenHeld.clear();
 	}
 
 	void Remember(std::uint32_t a_formId)
@@ -222,7 +316,10 @@ namespace effects
 		{
 			auto* actor = RE::TESForm::LookupByID<RE::Actor>(id);
 			if (!actor) { ++missing; continue; }
-			if (Holds(actor) && Set(actor, 0, false)) { ++cleared; }
+			if (!Holds(actor)) { continue; }
+			const bool speed = Set(actor, 0, false);
+			const bool regen = SetRegen(actor, 0);
+			if (speed || regen) { ++cleared; }
 		}
 		ForgetAll();
 		logger::info("[effects] after load: our abilities taken off {} actor(s) ({} remembered, {} no longer exist); the next tick re-applies by the ground",
@@ -239,9 +336,24 @@ namespace effects
 			mags += std::format("{{\"band\":{},\"spell\":\"{:08X}\",\"magnitude\":{:.1f}}}", i + 1, s ? s->GetFormID() : 0u,
 				s && !s->effects.empty() && s->effects[0] ? s->effects[0]->effectItem.magnitude : -1.0F);
 		}
-		return std::format("{{\"ready\":{},\"plugin\":\"{}\",\"bands\":[{}],\"road\":{{\"spell\":\"{:08X}\",\"magnitude\":{:.1f}}},\"applied\":{}}}", ready ? "true" : "false",
+		std::string regen;
+		for (int i = 0; i < settings::kBandCount; ++i)
+		{
+			if (i) { regen += ","; }
+			const RE::SpellItem* s = regenSpells[i];
+			regen += std::format("{{\"band\":{},\"spell\":\"{:08X}\",\"regenPercent\":{:.1f},\"magnitude\":{:.1f},\"wanted\":{}}}", i + 1, s ? s->GetFormID() : 0u,
+				settings::bands[i].regen.load(), s && !s->effects.empty() && s->effects[0] ? s->effects[0]->effectItem.magnitude : -1.0F, RegenWanted(i + 1) ? "true" : "false");
+		}
+		std::size_t regenHolders = 0;
+		{
+			std::scoped_lock l(appliedLock);
+			regenHolders = regenHeld.size();
+		}
+		return std::format("{{\"ready\":{},\"plugin\":\"{}\",\"bands\":[{}],\"road\":{{\"spell\":\"{:08X}\",\"magnitude\":{:.1f}}},\"applied\":{},"
+			"\"regenReady\":{},\"regen\":[{}],\"regenHolders\":{}}}", ready ? "true" : "false",
 			kPlugin, mags, roadSpell ? roadSpell->GetFormID() : 0u,
-			roadSpell && !roadSpell->effects.empty() && roadSpell->effects[0] ? roadSpell->effects[0]->effectItem.magnitude : -1.0F, AppliedCount());
+			roadSpell && !roadSpell->effects.empty() && roadSpell->effects[0] ? roadSpell->effects[0]->effectItem.magnitude : -1.0F, AppliedCount(),
+			regenReady ? "true" : "false", regen, regenHolders);
 	}
 
 	void Save(const SKSE::SerializationInterface* a_intfc)

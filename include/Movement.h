@@ -40,6 +40,19 @@ namespace movement
 		int npcsNear = 0;
 		int npcsClassified = 0;
 		int npcsAffected = 0;
+		// 1.3.0
+		int peopleClassified = 0;    // of npcsClassified: ActorTypeNPC races
+		int creaturesClassified = 0;
+		int peopleAffected = 0;      // of npcsAffected
+		int creaturesAffected = 0;
+		float staminaRateMult = -1.0F;  // the player's StaminaRateMult (100 = normal regen)
+		int regenBand = 0;              // the band whose regen penalty the player holds (0 = none)
+		int npcsInRegenRadius = 0;      // NPCs near (within fScanRadius) that are also within fRegenRadius
+		int npcsWithRegen = 0;          // NPCs holding a regen ability now
+		std::uint64_t regenChecks = 0;  // the once-a-second radius checks so far
+		int regenRemovedLast = 0;       // regen abilities the last check removed
+		std::uint64_t regenRemovedTotal = 0;
+		std::string actorsJson = "[]";  // the actors holding any of our abilities (at most 24), rebuilt at each check
 		std::size_t trailSquares = 0;
 	};
 

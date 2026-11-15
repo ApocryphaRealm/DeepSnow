@@ -23,7 +23,11 @@ namespace settings
 	namespace general
 	{
 		inline std::atomic<bool> enabled = true;             // bEnabled:General - the whole mechanism
-		inline std::atomic<bool> affectNPCs = false;         // bAffectNPCs:General - NPCs and creatures are slowed and drained too
+		// 1.3.0 (C1, jobenal's request): bAffectNPCs split in two. A humanoid is a race with the ActorTypeNPC keyword
+		// (as trails::Who), everything else is a creature. An INI with only the old bAffectNPCs gives its value to both
+		// (LoadFileValues), so an existing setup behaves the same.
+		inline std::atomic<bool> affectPeople = false;       // bAffectPeople:General - other people (ActorTypeNPC races) are slowed and drained too
+		inline std::atomic<bool> affectCreatures = false;    // bAffectCreatures:General - creatures (every other race) are slowed and drained too
 		inline std::atomic<std::uint32_t> tickMs = 250;      // uTickMs:General - time between ticks (250 = 4 a second)
 		inline std::atomic<std::uint32_t> actorsPerTick = 6; // uActorsPerTick:General - NPCs classified per tick (round robin)
 		inline std::atomic<float> scanRadius = 6000.0F;      // fScanRadius:General - NPCs farther from the player are ignored
@@ -50,17 +54,26 @@ namespace settings
 		std::atomic<float> depth;  // fBandNDepth:Bands - the band starts at this depth % of a full blanket
 		std::atomic<float> speed;  // fBandNSpeed:Bands - movement speed in the band, % of normal (SpeedMult points off = 100 - speed)
 		std::atomic<float> drain;  // fBandNDrain:Bands - stamina points a second while moving in the band
+		std::atomic<float> regen;  // fBandNRegen:Bands - stamina regeneration in the band, % of normal (100 = no change, the default)
 	};
 	inline std::array<Band, kBandCount> bands{ {
-		{ 10.0F, 95.0F, 0.5F },
-		{ 30.0F, 88.0F, 1.0F },
-		{ 50.0F, 80.0F, 1.5F },
-		{ 70.0F, 72.0F, 2.0F },
-		{ 90.0F, 65.0F, 2.5F },
+		{ 10.0F, 95.0F, 0.5F, 100.0F },
+		{ 30.0F, 88.0F, 1.0F, 100.0F },
+		{ 50.0F, 80.0F, 1.5F, 100.0F },
+		{ 70.0F, 72.0F, 2.0F, 100.0F },
+		{ 90.0F, 65.0F, 2.5F, 100.0F },
 	} };
-	struct BandDefault { float depth, speed, drain; };
-	inline constexpr std::array<BandDefault, kBandCount> kBandDefaults{ { { 10.0F, 95.0F, 0.5F }, { 30.0F, 88.0F, 1.0F }, { 50.0F, 80.0F, 1.5F },
-		{ 70.0F, 72.0F, 2.0F }, { 90.0F, 65.0F, 2.5F } } };
+	struct BandDefault { float depth, speed, drain, regen; };
+	inline constexpr std::array<BandDefault, kBandCount> kBandDefaults{ { { 10.0F, 95.0F, 0.5F, 100.0F }, { 30.0F, 88.0F, 1.0F, 100.0F },
+		{ 50.0F, 80.0F, 1.5F, 100.0F }, { 70.0F, 72.0F, 2.0F, 100.0F }, { 90.0F, 65.0F, 2.5F, 100.0F } } };
+
+	// 1.3.0 (R1, jobenal's request): the stamina REGEN penalty (fBandNRegen above) reaches other people and creatures
+	// only within this distance of the player, for performance (the owner, 2026-11-14). The player always gets it. An
+	// NPC farther away loses it at the next radius check (once a second, movement.cpp), not per frame.
+	namespace npcs
+	{
+		inline std::atomic<float> regenRadius = 4096.0F;  // fRegenRadius:NPCs - game units (4096 = one exterior cell)
+	}
 
 	namespace stamina
 	{
@@ -74,6 +87,13 @@ namespace settings
 		inline std::atomic<float> speed = 110.0F;   // fSpeed:Roads - speed on a road with the bonus on, % of normal
 		inline std::atomic<bool> useNavmesh = true; // bUseNavmesh:Roads - the navmesh "preferred path" flag marks a road (player only)
 		inline std::atomic<bool> pathsAreRoads = false; // bPathsAreRoads:Roads - "path" in a name counts as "road" (SurfaceRules.h)
+	}
+
+	namespace surfaces
+	{
+		// 1.3.0 (S1, idea and approach by nesslowland): a landscape texture whose material is snow (BGSMaterialType
+		// MATERIAL_ID::kSnow - what seasonal swaps set so footsteps sound right) counts as snow when no list names it.
+		inline std::atomic<bool> snowMaterial = true;  // bSnowMaterial:Surfaces
 	}
 
 	namespace trails

@@ -13,6 +13,7 @@
 #include <map>
 #include <sstream>
 #include <string>
+#include <tuple>
 
 namespace settings
 {
@@ -123,7 +124,8 @@ namespace settings
 			static const std::vector<Key> keys = [] {
 				std::vector<Key> k;
 				k.push_back(B("General", "bEnabled", general::enabled));
-				k.push_back(B("General", "bAffectNPCs", general::affectNPCs));
+				k.push_back(B("General", "bAffectPeople", general::affectPeople));
+				k.push_back(B("General", "bAffectCreatures", general::affectCreatures));
 				k.push_back(U("General", "uTickMs", general::tickMs));
 				k.push_back(U("General", "uActorsPerTick", general::actorsPerTick));
 				k.push_back(F("General", "fScanRadius", general::scanRadius));
@@ -142,13 +144,16 @@ namespace settings
 					k.push_back(F("Bands", std::format("fBand{}Depth", i + 1), bands[i].depth));
 					k.push_back(F("Bands", std::format("fBand{}Speed", i + 1), bands[i].speed));
 					k.push_back(F("Bands", std::format("fBand{}Drain", i + 1), bands[i].drain));
+					k.push_back(F("Bands", std::format("fBand{}Regen", i + 1), bands[i].regen));
 				}
+				k.push_back(F("NPCs", "fRegenRadius", npcs::regenRadius));
 				k.push_back(B("Stamina", "bDrain", stamina::drain));
 				k.push_back(F("Stamina", "fFloor", stamina::floor));
 				k.push_back(B("Roads", "bBonus", roads::bonus));
 				k.push_back(F("Roads", "fSpeed", roads::speed));
 				k.push_back(B("Roads", "bUseNavmesh", roads::useNavmesh));
 				k.push_back(B("Roads", "bPathsAreRoads", roads::pathsAreRoads));
+				k.push_back(B("Surfaces", "bSnowMaterial", surfaces::snowMaterial));
 				k.push_back(B("Trails", "bEnabled", trails::enabled));
 				k.push_back(F("Trails", "fPackPerPass", trails::packPerPass));
 				k.push_back(F("Trails", "fPackedRemain", trails::packedRemain));
@@ -202,6 +207,26 @@ namespace settings
 				if (!key.read(it->second)) { ++bad; logger::warn("settings: value \"{}\" for {} is not valid; keeping the current value", Trim(it->second), id); continue; }
 				++read;
 			}
+			// bAffectNPCs (before 1.3.0) covered people and creatures alike: an INI that still has it and lacks a new key
+			// gives that key its value, so an existing setup behaves the same.
+			if (const auto old = k.find("baffectnpcs:general"); old != k.end())
+			{
+				bool v = false;
+				if (ParseBool(old->second, v))
+				{
+					for (auto [id, target, name] : { std::tuple{ "baffectpeople:general", &general::affectPeople, "bAffectPeople" },
+							 std::tuple{ "baffectcreatures:general", &general::affectCreatures, "bAffectCreatures" } })
+					{
+						if (k.find(id) != k.end()) { continue; }
+						*target = v;
+						logger::info("settings: {} is not in the INI; it takes the old bAffectNPCs={}", name, v ? 1 : 0);
+					}
+				}
+				else
+				{
+					logger::warn("settings: old key bAffectNPCs has value \"{}\", not 0 or 1; ignored", Trim(old->second));
+				}
+			}
 			Clamp();
 			logger::info("settings loaded from {}: {} read, {} missing, {} invalid", iniPath, read, missing, bad);
 			return true;
@@ -249,6 +274,25 @@ namespace settings
 			a_lines.insert(a_lines.begin() + static_cast<std::ptrdiff_t>(insertAt), a_key + "=" + a_value);
 			logger::info("Save: {} added to [{}]", a_key, a_section);
 			return true;
+		}
+
+		// The old bAffectNPCs line becomes a comment on Save, once its value lives in bAffectPeople / bAffectCreatures
+		// (written just before), so a later hand edit of the dead key cannot look like it does something.
+		void RetireOldKeys(std::vector<std::string>& a_lines)
+		{
+			std::string section;
+			for (auto& line : a_lines)
+			{
+				const std::string t = Trim(line);
+				if (IsSectionHeader(t)) { section = Lower(t.substr(1, t.size() - 2)); continue; }
+				const auto eq = t.find('=');
+				if (eq == std::string::npos || t[0] == ';' || section != "general") { continue; }
+				if (Lower(Trim(t.substr(0, eq))) == "baffectnpcs")
+				{
+					logger::info("Save: old key bAffectNPCs ({}) retired; bAffectPeople and bAffectCreatures carry it now", Trim(t.substr(eq + 1)));
+					line = "; bAffectNPCs (before 1.3.0) is now bAffectPeople and bAffectCreatures: " + t;
+				}
+			}
 		}
 
 		template <class T>
@@ -334,6 +378,17 @@ namespace settings
 
 	bool SetValue(const std::string& a_key, const std::string& a_value)
 	{
+		// The old key, kept for DevBench and scripts: sets both of the keys it became.
+		if (const std::string want = Lower(Trim(a_key)); want == "baffectnpcs" || want == "general:baffectnpcs")
+		{
+			bool v = false;
+			if (!ParseBool(a_value, v)) { logger::warn("settings: set: \"{}\" is not valid for {}", a_value, a_key); return false; }
+			general::affectPeople = v;
+			general::affectCreatures = v;
+			++generation;
+			logger::info("settings: set General:bAffectNPCs (old key) = {} -> bAffectPeople and bAffectCreatures", v ? 1 : 0);
+			return true;
+		}
 		const Key* k = FindKey(a_key);
 		if (!k) { logger::warn("settings: set: no key \"{}\"", a_key); return false; }
 		if (!k->read(a_value)) { logger::warn("settings: set: \"{}\" is not valid for {}", a_value, a_key); return false; }
@@ -383,7 +438,9 @@ namespace settings
 			ClampAtomic(b.depth, 0.0F, 150.0F);
 			ClampAtomic(b.speed, 10.0F, 100.0F);
 			ClampAtomic(b.drain, 0.0F, 20.0F);
+			ClampAtomic(b.regen, 0.0F, 100.0F);
 		}
+		ClampAtomic(npcs::regenRadius, 512.0F, 20000.0F);
 		ClampAtomic(stamina::floor, 0.0F, 100.0F);
 		ClampAtomic(roads::speed, 100.0F, 150.0F);
 		ClampAtomic(trails::packPerPass, 0.0F, 1.0F);
@@ -429,6 +486,7 @@ namespace settings
 			while (std::getline(in, line)) { lines.push_back(line); }
 		}
 		for (const Key& key : Keys()) { WriteKey(lines, key.section, key.name, key.write()); }
+		RetireOldKeys(lines);
 		std::ofstream out(iniPath, std::ios::trunc);
 		if (!out) { logger::error("Save: could not open {} for writing", iniPath); return false; }
 		for (const auto& line : lines) { out << line << '\n'; }
@@ -440,7 +498,8 @@ namespace settings
 	{
 		// The compiled defaults, which the shipped INI repeats (rule 16).
 		general::enabled = true;
-		general::affectNPCs = false;
+		general::affectPeople = false;
+		general::affectCreatures = false;
 		general::tickMs = 250;
 		general::actorsPerTick = 6;
 		general::scanRadius = 6000.0F;
@@ -459,13 +518,16 @@ namespace settings
 			bands[i].depth = kBandDefaults[i].depth;
 			bands[i].speed = kBandDefaults[i].speed;
 			bands[i].drain = kBandDefaults[i].drain;
+			bands[i].regen = kBandDefaults[i].regen;
 		}
+		npcs::regenRadius = 4096.0F;
 		stamina::drain = true;
 		stamina::floor = 10.0F;
 		roads::bonus = false;
 		roads::speed = 110.0F;
 		roads::useNavmesh = true;
 		roads::pathsAreRoads = false;
+		surfaces::snowMaterial = true;
 		trails::enabled = true;
 		trails::packPerPass = 0.2F;
 		trails::packedRemain = 0.25F;

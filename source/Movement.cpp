@@ -48,6 +48,14 @@ namespace movement
 		float lastDays = -1.0F;
 		float drainAccum = 0.0F;
 		Clock::time_point drainWindow{};
+		// The regen radius check (1.3.0): NPCs holding the regen ability are checked against [NPCs] fRegenRadius on this
+		// timer - inside the tick, never per frame - and lose it when they are out of range, unloaded or gone.
+		constexpr auto kRegenCheckInterval = std::chrono::milliseconds(1000);
+		Clock::time_point lastRegenCheck{};
+		std::uint64_t regenChecks = 0;
+		int regenRemovedLast = 0;
+		std::uint64_t regenRemovedTotal = 0;
+		std::string actorsJson = "[]";  // rebuilt at each regen check
 
 		float NowDays()
 		{
@@ -68,6 +76,16 @@ namespace movement
 			return race && race->HasKeywordString("ActorTypeNPC") ? trails::Who::kNPC : trails::Who::kCreature;
 		}
 
+		// 1.3.0 (C1): [General] bAffectPeople for ActorTypeNPC races, bAffectCreatures for the rest. The player always.
+		bool Affects(RE::Actor* a_actor)
+		{
+			if (a_actor->IsPlayerRef()) { return true; }
+			return WhoOf(a_actor) == trails::Who::kNPC ? settings::general::affectPeople.load() : settings::general::affectCreatures.load();
+		}
+
+		// The regen penalty reaches an NPC only this close to the player (the owner, 2026-11-14: "for performance").
+		bool InRegenRadius(float a_distance) { return a_distance <= settings::npcs::regenRadius.load(); }
+
 		struct Result
 		{
 			surface::Reading reading;
@@ -76,11 +94,13 @@ namespace movement
 			float sdUnits = -1.0F;
 			int groundBand = 0;
 			int band = 0;
+			int regenBand = 0;   // the band whose regen ability the actor holds (0 = none)
 			bool road = false;
 			float drained = 0.0F;
 		};
 
-		Result Process(RE::Actor* a_actor, bool a_isPlayer, float a_now, bool a_snowing, float a_seconds)
+		// a_distance: from the player (0 for the player), for the regen radius.
+		Result Process(RE::Actor* a_actor, bool a_isPlayer, float a_now, bool a_snowing, float a_seconds, float a_distance)
 		{
 			Result r;
 			r.reading = surface::Read(a_actor, a_isPlayer);
@@ -101,7 +121,7 @@ namespace movement
 				r.band = std::clamp(forced.load(), 0, settings::kBandCount);
 				r.road = false;
 			}
-			if (!a_isPlayer && !settings::general::affectNPCs)
+			if (!a_isPlayer && !Affects(a_actor))
 			{
 				r.band = 0;
 				r.road = false;
@@ -121,18 +141,85 @@ namespace movement
 				s.band = r.band;
 				s.road = r.road;
 			}
+			// The regen penalty: the same band, for the player always and for an NPC only within fRegenRadius.
+			const int regenWant = (a_isPlayer || InRegenRadius(a_distance)) && effects::RegenWanted(r.band) ? r.band : 0;
+			if (effects::SetRegen(a_actor, regenWant) && a_isPlayer)
+			{
+				logger::debug("[tick] player: stamina regen ability {}", regenWant > 0 ? std::format("band {} ({:.0f}% regen)", regenWant, settings::bands[regenWant - 1].regen.load()) : std::string("off"));
+			}
+			r.regenBand = regenWant;
 			if (r.band > 0 && a_actor->IsMoving()) { r.drained = effects::Drain(a_actor, r.band, a_seconds); }
 			return r;
 		}
 
 		void ClearEveryone()
 		{
-			if (auto* player = RE::PlayerCharacter::GetSingleton()) { effects::Set(player, 0, false); }
+			if (auto* player = RE::PlayerCharacter::GetSingleton()) { effects::Set(player, 0, false); effects::SetRegen(player, 0); }
 			for (const std::uint32_t id : effects::Applied())
 			{
-				if (auto* a = RE::TESForm::LookupByID<RE::Actor>(id)) { effects::Set(a, 0, false); }
+				if (auto* a = RE::TESForm::LookupByID<RE::Actor>(id)) { effects::Set(a, 0, false); effects::SetRegen(a, 0); }
 			}
 			seen.clear();
+		}
+
+		std::string Esc(const std::string& a_s);
+
+		// Once a second (kRegenCheckInterval): every NPC holding a regen ability is checked against the radius and the
+		// settings, and loses it when it is farther than fRegenRadius, not loaded, in another worldspace, no longer
+		// affected (bAffectPeople / bAffectCreatures) or its band's regen is back at 100 %. Also rebuilds the actor list
+		// deepsnow.state shows. Cheap: it walks only the actors holding our abilities.
+		void CheckRegenRadius(RE::PlayerCharacter* a_player, Clock::time_point a_now)
+		{
+			if (a_now - lastRegenCheck < kRegenCheckInterval) { return; }
+			lastRegenCheck = a_now;
+			++regenChecks;
+			const RE::NiPoint3 ppos = a_player->GetPosition();
+			const RE::TESWorldSpace* pws = a_player->GetWorldspace();
+			const float radius = settings::npcs::regenRadius.load();
+			int removed = 0;
+			for (const auto& [id, band] : effects::RegenHolders())
+			{
+				if (id == a_player->GetFormID()) { continue; }  // the player's regen follows the ground every tick
+				RE::Actor* a = RE::TESForm::LookupByID<RE::Actor>(id);
+				if (!a) { continue; }
+				const bool loaded = a->Is3DLoaded() && a->GetParentCell() != nullptr && !a->IsDisabled();
+				const float dist = loaded && a->GetWorldspace() == pws ? a->GetPosition().GetDistance(ppos) : -1.0F;
+				const char* why = !loaded ? "not loaded" : dist < 0.0F ? "another worldspace" : dist > radius ? "outside the regen radius" :
+					!Affects(a) ? "no longer affected" : !effects::RegenWanted(band) ? "band regen back at 100%" : nullptr;
+				if (!why) { continue; }
+				if (effects::SetRegen(a, 0))
+				{
+					++removed;
+					logger::debug("[regen] {:08X} '{}': regen penalty removed ({}; {:.0f} units, radius {:.0f})", id, a->GetName(), why, dist, radius);
+				}
+			}
+			regenRemovedLast = removed;
+			regenRemovedTotal += static_cast<std::uint64_t>(removed);
+
+			// The actors holding any Deep Snow ability, for deepsnow.state (at most 24).
+			std::string list;
+			int n = 0;
+			std::unordered_map<std::uint32_t, int> regenOf;
+			for (const auto& [rid, rb] : effects::RegenHolders()) { regenOf[rid] = rb; }
+			for (const std::uint32_t id : effects::Applied())
+			{
+				if (n >= 24) { break; }
+				RE::Actor* a = RE::TESForm::LookupByID<RE::Actor>(id);
+				if (!a) { continue; }
+				RE::ActorValueOwner* avo = a->AsActorValueOwner();
+				const auto rit = regenOf.find(id);
+				const int regenBand = rit != regenOf.end() ? rit->second : 0;
+				const auto it = seen.find(id);
+				const float dist = a->GetWorldspace() == pws ? a->GetPosition().GetDistance(ppos) : -1.0F;
+				const trails::Who who = WhoOf(a);
+				if (n++) { list += ","; }
+				list += std::format("{{\"id\":\"{:08X}\",\"name\":\"{}\",\"type\":\"{}\",\"band\":{},\"regenBand\":{},\"distance\":{:.0f},\"inRegenRadius\":{},"
+					"\"speedMult\":{:.2f},\"staminaRateMult\":{:.2f}}}", id, Esc(a->GetName()),
+					who == trails::Who::kPlayer ? "player" : who == trails::Who::kNPC ? "person" : "creature", it != seen.end() ? it->second.band : 0, regenBand, dist,
+					dist >= 0.0F && dist <= radius ? "true" : "false", avo ? avo->GetActorValue(RE::ActorValue::kSpeedMult) : -1.0F,
+					avo ? avo->GetActorValue(RE::ActorValue::kStaminaRateMult) : -1.0F);
+			}
+			actorsJson = "[" + list + "]";
 		}
 
 		void DoMark(RE::PlayerCharacter* a_player)
@@ -194,6 +281,7 @@ namespace movement
 				seen.clear();
 				npcCursor = 0;
 				lastDays = -1.0F;
+				actorsJson = "[]";
 			}
 
 			const std::uint64_t gen = settings::Generation();
@@ -240,10 +328,11 @@ namespace movement
 			}
 			wasEnabled = true;
 
-			const Result pr = Process(player, true, now, snowing, seconds);
+			const Result pr = Process(player, true, now, snowing, seconds, 0.0F);
 
 			// NPCs and creatures: every nearby one stamps the trail (cheap); uActorsPerTick of them are classified.
-			int nearCount = 0, classified = 0, affected = 0;
+			int nearCount = 0, classified = 0, affected = 0, inRegenRadius = 0;
+			int peopleClassified = 0, creaturesClassified = 0, peopleAffected = 0, creaturesAffected = 0;
 			if (RE::ProcessLists* pl = RE::ProcessLists::GetSingleton())
 			{
 				const float radius = settings::general::scanRadius.load();
@@ -258,13 +347,21 @@ namespace movement
 					RE::NiPointer<RE::Actor> sp = handles[static_cast<std::uint32_t>(i)].get();
 					RE::Actor* a = sp.get();
 					if (!a || a == player || a->IsDead() || a->IsDisabled() || !a->Is3DLoaded()) { continue; }
-					if (a->GetPosition().GetDistance(ppos) > radius) { continue; }
+					const float dist = a->GetPosition().GetDistance(ppos);
+					if (dist > radius) { continue; }
 					++nearCount;
+					if (InRegenRadius(dist)) { ++inRegenRadius; }
 					if (classified < static_cast<int>(budget))
 					{
-						const Result r = Process(a, false, now, snowing, seconds * static_cast<float>(std::max<std::size_t>(1, n)) / std::max(1.0F, static_cast<float>(budget)));
+						const Result r = Process(a, false, now, snowing, seconds * static_cast<float>(std::max<std::size_t>(1, n)) / std::max(1.0F, static_cast<float>(budget)), dist);
 						++classified;
-						if (r.band > 0 || r.road) { ++affected; }
+						const bool person = WhoOf(a) == trails::Who::kNPC;
+						++(person ? peopleClassified : creaturesClassified);
+						if (r.band > 0 || r.road)
+						{
+							++affected;
+							++(person ? peopleAffected : creaturesAffected);
+						}
 						npcCursor = i + 1;
 					}
 					else if (settings::trails::enabled && !a->IsOnMount())
@@ -277,6 +374,8 @@ namespace movement
 					}
 				}
 			}
+
+			CheckRegenRadius(player, t0);
 
 			static int pruneCount = 0;
 			if (++pruneCount >= 16) { pruneCount = 0; trails::Prune(now, snowing); }
@@ -305,6 +404,8 @@ namespace movement
 			snap.moving = player->IsMoving();
 			snap.speedMult = avo ? avo->GetActorValue(RE::ActorValue::kSpeedMult) : -1.0F;
 			snap.stamina = avo ? avo->GetActorValue(RE::ActorValue::kStamina) : -1.0F;
+			snap.staminaRateMult = avo ? avo->GetActorValue(RE::ActorValue::kStaminaRateMult) : -1.0F;
+			snap.regenBand = pr.regenBand;
 			if (drainWindow == t0) { snap.drainedLastSecond = drainAccum; drainAccum = 0.0F; }
 			++snap.ticks;
 			snap.tickUsAvg = snap.tickUsAvg <= 0.0F ? us : snap.tickUsAvg * 0.95F + us * 0.05F;
@@ -312,6 +413,18 @@ namespace movement
 			snap.npcsNear = nearCount;
 			snap.npcsClassified = classified;
 			snap.npcsAffected = affected;
+			snap.npcsInRegenRadius = inRegenRadius;
+			snap.peopleClassified = peopleClassified;
+			snap.creaturesClassified = creaturesClassified;
+			snap.peopleAffected = peopleAffected;
+			snap.creaturesAffected = creaturesAffected;
+			int npcRegen = 0;
+			for (const auto& [id, band] : effects::RegenHolders()) { if (id != player->GetFormID()) { ++npcRegen; } }
+			snap.npcsWithRegen = npcRegen;
+			snap.regenChecks = regenChecks;
+			snap.regenRemovedLast = regenRemovedLast;
+			snap.regenRemovedTotal = regenRemovedTotal;
+			snap.actorsJson = actorsJson;
 			snap.trailSquares = trails::Count();
 		}
 
@@ -376,8 +489,8 @@ namespace movement
 		for (int i = 0; i < settings::kBandCount; ++i)
 		{
 			if (i) { bands += ","; }
-			bands += std::format("{{\"band\":{},\"depth\":{:.1f},\"speed\":{:.1f},\"drain\":{:.2f}}}", i + 1, settings::bands[i].depth.load(), settings::bands[i].speed.load(),
-				settings::bands[i].drain.load());
+			bands += std::format("{{\"band\":{},\"depth\":{:.1f},\"speed\":{:.1f},\"drain\":{:.2f},\"regen\":{:.1f}}}", i + 1, settings::bands[i].depth.load(), settings::bands[i].speed.load(),
+				settings::bands[i].drain.load(), settings::bands[i].regen.load());
 		}
 		const auto& r = s.reading;
 		return std::format(
@@ -386,12 +499,21 @@ namespace movement
 			"\"depthPercent\":{:.2f},\"depthSource\":\"{}\",\"depthSourceSetting\":{},\"sdFound\":{},\"sdActive\":{},\"sdUnits\":{:.2f},\"sdFullDepthUnits\":{:.1f},"
 			"\"fullDepthUnits\":{:.1f},\"fullDepthSource\":\"{}\",\"depthUnits\":{:.2f},\"groundBand\":{},\"band\":{},\"forcedBand\":{},\"road\":{},"
 			"\"moving\":{},\"speedMult\":{:.2f},\"stamina\":{:.2f},\"drainedLastSecond\":{:.3f},\"ticks\":{},\"tickUsAvg\":{:.1f},\"tickUsMax\":{:.1f},"
-			"\"npcsNear\":{},\"npcsClassified\":{},\"npcsAffected\":{},\"affectNPCs\":{},\"trailSquares\":{},\"bands\":[{}]}}",
+			"\"npcsNear\":{},\"npcsClassified\":{},\"npcsAffected\":{},\"affectPeople\":{},\"affectCreatures\":{},\"peopleClassified\":{},\"creaturesClassified\":{},"
+			"\"peopleAffected\":{},\"creaturesAffected\":{},\"trailSquares\":{},\"bands\":[{}],"
+			"\"landMaterial\":{},\"snowMaterial\":{},\"bSnowMaterial\":{},"
+			"\"regen\":{{\"ready\":{},\"band\":{},\"staminaRateMult\":{:.2f},\"radius\":{:.0f},\"radiusEffective\":{:.0f},\"checkIntervalMs\":{},\"checks\":{},"
+			"\"npcsInRadius\":{},\"npcsWithRegen\":{},\"removedLastCheck\":{},\"removedTotal\":{}}},\"actors\":{}}}",
 			B(s.havePlayer), B(s.enabled), B(s.effectsReady), surface::Name(r.kind), Esc(r.why ? r.why : ""), Esc(r.texture), r.landTexture, Esc(r.landEditorID), Esc(r.textureSetEditorID), Esc(r.roadBy), editor_ids::Count(), Esc(r.model), r.material, r.cover, B(r.preferred),
 			B(r.navmeshRead), B(r.sheltered), r.roofDistance, s.packing, s.snowfall, B(s.snowing), s.depthPercent, depth::SourceName(static_cast<depth::Source>(s.depthSource)), settings::depth::source.load(),
 			B(depth::SnowDeformationFound()), B(depth::SnowDeformationActive()), s.sdUnits, settings::depth::sdFullDepthUnits.load(), depth::FullDepthUnits(), depth::FullDepthSource(),
 			s.depthPercent / 100.0F * depth::FullDepthUnits(), s.groundBand, s.band, s.forcedBand, B(s.road), B(s.moving), s.speedMult, s.stamina, s.drainedLastSecond,
-			s.ticks, s.tickUsAvg, s.tickUsMax, s.npcsNear, s.npcsClassified, s.npcsAffected, B(settings::general::affectNPCs), s.trailSquares, bands);
+			s.ticks, s.tickUsAvg, s.tickUsMax, s.npcsNear, s.npcsClassified, s.npcsAffected, B(settings::general::affectPeople), B(settings::general::affectCreatures),
+			s.peopleClassified, s.creaturesClassified, s.peopleAffected, s.creaturesAffected, s.trailSquares, bands,
+			r.landMaterial, B(r.snowMaterial), B(settings::surfaces::snowMaterial),
+			B(effects::RegenReady()), s.regenBand, s.staminaRateMult, settings::npcs::regenRadius.load(),
+			std::min(settings::npcs::regenRadius.load(), settings::general::scanRadius.load()), kRegenCheckInterval.count(), s.regenChecks, s.npcsInRegenRadius,
+			s.npcsWithRegen, s.regenRemovedLast, s.regenRemovedTotal, s.actorsJson);
 	}
 
 	void ForceBand(int a_band)

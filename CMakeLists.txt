@@ -2,13 +2,13 @@ cmake_minimum_required(VERSION 3.21)
 
 project(
 	DeepSnow
-	VERSION 1.2.1
+	VERSION 1.3.0
 	LANGUAGES CXX
 )
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+set(CMAKE_INTERPROCEDURAL_OPTIMIZATION OFF)  # the gate refuses ON (dll-built-without-ltcg: MSVC 14.52 /GL output is flagged by AV engines)
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_DEBUG OFF)
 
 # The DLL's VERSIONINFO resource, stamped from the project version (the version gate reads it).
