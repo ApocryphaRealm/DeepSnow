@@ -8,6 +8,13 @@ Written as changes happen, not reconstructed afterwards (rule 61). Each version 
 * **failed** - built but crashed or malfunctioned; the number was reclaimed
 * **scratch** - a hypothesis-test build that never held a real number
 
+## Unreleased
+
+### Fixed
+- The player's speed no longer jumps several bands from one step to the next on mixed ground. The depth is one reading at the feet, so stepping off a patch of snow, or a single odd texture pick in a snow field, could swing the speed from band 5 to none and back. The formula is unchanged; the player's depth now follows it over [Depth] fSmoothDistance walked (200 units, about 3 m; within 2 seconds standing still), so the speed steps a band at a time. Roads and ice, being exempt, still count at once, and a teleport or a load starts over. 0 turns it off. A slider on the settings page sets it (English only for now).
+- Other people and creatures are unchanged: they use the reading at their feet.
+- Verified by nesslowland in game on 1.6.640 (own model, Seasons of Skyrim).
+
 ## 1.3.0 - 2026-11-14 - untested
 
 ### Added
