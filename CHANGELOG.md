@@ -8,7 +8,7 @@ Written as changes happen, not reconstructed afterwards (rule 61). Each version 
 * **failed** - built but crashed or malfunctioned; the number was reclaimed
 * **scratch** - a hypothesis-test build that never held a real number
 
-## 1.3.0 - 2026-11-14 - untested
+## 1.3.0 - 2026-11-14 - working
 
 ### Added
 - tools\surface_rules_check.bat: 12 snow-material cases (Forgotten Vale texture on and off, a seasonal dirt02, LSnow01 still decided by the list, trail / road / ice still first, the cover layer score) - 45 cases in all.
