@@ -153,6 +153,8 @@ namespace UI
 		{
 			ImGuiMCP::SeparatorText(TR("DS_ModelTitle", "How deep is the snow?"));
 			RenderSource();
+			Slider(TR("DS_SmoothDistance", "Depth change over"), settings::depth::smoothDistance, 0.0F, 1024.0F, "%.0f",
+				TR("DS_HelpSmoothDistance", "A new depth is reached over this many units walked, so your speed steps between bands instead of jumping. 0 = at once."));
 			const std::string units = std::format("{:.0f}", depth::FullDepthUnits());
 			if (depth::ActiveSource() == depth::Source::kSnowDeformation)
 			{

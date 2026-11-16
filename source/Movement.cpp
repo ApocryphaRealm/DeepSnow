@@ -42,6 +42,20 @@ namespace movement
 			bool road = false;
 		};
 		std::unordered_map<std::uint32_t, Seen> seen;
+
+		// The player's depth follows the reading over [Depth] fSmoothDistance walked (game thread only), so the speed
+		// steps one band at a time instead of jumping between bands from one step to the next. NPCs keep the reading.
+		struct Smoothed
+		{
+			bool have = false;
+			std::uint32_t worldspace = 0;
+			float x = 0.0F;
+			float y = 0.0F;
+			float depth = 0.0F;
+		};
+		Smoothed playerDepth;
+		constexpr float kSettleSeconds = 2.0F;  // standing still, a new depth is still reached within this long
+		constexpr float kJumpUnits = 1024.0F;   // farther than this in one tick is a teleport or a load: start over
 		std::size_t npcCursor = 0;
 		std::uint64_t lastGeneration = 0;
 		Clock::time_point lastTick{};
@@ -99,6 +113,23 @@ namespace movement
 			float drained = 0.0F;
 		};
 
+		// Roads and ice are exempt and no reading is no snow, so those are taken at once.
+		float SmoothPlayer(const Result& a_r, std::uint32_t a_worldspace, const RE::NiPoint3& a_pos, float a_seconds)
+		{
+			using K = surface::Kind;
+			Smoothed& m = playerDepth;
+			const float moved = m.have && m.worldspace == a_worldspace ? std::hypot(a_pos.x - m.x, a_pos.y - m.y) : -1.0F;
+			const float blend = settings::depth::smoothDistance.load();
+			const K kind = a_r.reading.kind;
+			if (blend <= 0.0F || moved < 0.0F || moved > kJumpUnits || kind == K::kNone || kind == K::kIce || kind == K::kRoad) { m.depth = a_r.depth; }
+			else { m.depth += (a_r.depth - m.depth) * std::clamp(std::max(moved / blend, a_seconds / kSettleSeconds), 0.0F, 1.0F); }
+			m.have = true;
+			m.worldspace = a_worldspace;
+			m.x = a_pos.x;
+			m.y = a_pos.y;
+			return m.depth;
+		}
+
 		// a_distance: from the player (0 for the player), for the regen radius.
 		Result Process(RE::Actor* a_actor, bool a_isPlayer, float a_now, bool a_snowing, float a_seconds, float a_distance)
 		{
@@ -113,6 +144,7 @@ namespace movement
 			}
 			// Snow Deformation's depth already carries its accumulation, so our snowfall boost applies only to our own model.
 			r.depth = depth::PercentFor(a_actor, r.reading, r.packing, snowfallBoost.load(), &r.sdUnits);
+			if (a_isPlayer) { r.depth = SmoothPlayer(r, ws ? ws->GetFormID() : 0, pos, a_seconds); }
 			r.groundBand = depth::BandFor(r.depth);
 			r.band = r.groundBand;
 			r.road = r.reading.kind == surface::Kind::kRoad && settings::roads::bonus;
@@ -160,6 +192,7 @@ namespace movement
 				if (auto* a = RE::TESForm::LookupByID<RE::Actor>(id)) { effects::Set(a, 0, false); effects::SetRegen(a, 0); }
 			}
 			seen.clear();
+			playerDepth = {};
 		}
 
 		std::string Esc(const std::string& a_s);
@@ -279,6 +312,7 @@ namespace movement
 			{
 				effects::ResetAfterLoad();
 				seen.clear();
+				playerDepth = {};
 				npcCursor = 0;
 				lastDays = -1.0F;
 				actorsJson = "[]";
